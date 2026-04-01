@@ -28,7 +28,7 @@ func NewGetPinnedMessages(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		body, err := c.GetPinnedMessages(chatID)
+		body, err := c.GetPinnedMessages(ctx, chatID)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}

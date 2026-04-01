@@ -2,6 +2,7 @@
 "use strict";
 
 const { execSync } = require("child_process");
+const crypto = require("crypto");
 const fs = require("fs");
 const path = require("path");
 const https = require("https");
@@ -36,8 +37,6 @@ function getAssetName() {
   return `telegram-archive-mcp_${VERSION}_${platform}_${arch}.${ext}`;
 }
 
-// NOTE: No checksum verification is performed on the downloaded binary.
-// The download relies on HTTPS transport security from GitHub Releases.
 const MAX_REDIRECTS = 10;
 const REQUEST_TIMEOUT_MS = 30_000;
 
@@ -65,6 +64,35 @@ function downloadFile(url, redirectCount = 0) {
     });
     req.on("error", reject);
   });
+}
+
+async function verifyChecksum(buffer, assetName, releaseUrlBase) {
+  const checksumsUrl = `${releaseUrlBase}/checksums.txt`;
+  console.log("Downloading checksums.txt for verification...");
+  const checksumsBuffer = await downloadFile(checksumsUrl);
+  const checksumsText = checksumsBuffer.toString("utf-8");
+
+  const actualHash = crypto.createHash("sha256").update(buffer).digest("hex");
+
+  const expectedLine = checksumsText
+    .split("\n")
+    .find((line) => line.includes(assetName));
+
+  if (!expectedLine) {
+    throw new Error(
+      `Checksum verification failed: no entry for ${assetName} in checksums.txt`
+    );
+  }
+
+  const expectedHash = expectedLine.trim().split(/\s+/)[0];
+
+  if (actualHash !== expectedHash) {
+    throw new Error(
+      `Checksum mismatch for ${assetName}:\n  expected: ${expectedHash}\n  actual:   ${actualHash}`
+    );
+  }
+
+  console.log("SHA-256 checksum verified.");
 }
 
 async function extract(buffer, assetName) {
@@ -102,10 +130,13 @@ async function main() {
   }
 
   const assetName = getAssetName();
-  const url = `https://github.com/${REPO}/releases/download/v${VERSION}/${assetName}`;
+  const releaseUrlBase = `https://github.com/${REPO}/releases/download/v${VERSION}`;
+  const url = `${releaseUrlBase}/${assetName}`;
 
   console.log(`Downloading telegram-archive-mcp v${VERSION} for ${process.platform}-${process.arch}...`);
   const buffer = await downloadFile(url);
+
+  await verifyChecksum(buffer, assetName, releaseUrlBase);
 
   console.log("Extracting binary...");
   await extract(buffer, assetName);

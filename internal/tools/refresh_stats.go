@@ -19,7 +19,7 @@ func NewRefreshStats(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 	)
 
 	handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		body, err := c.RefreshStats()
+		body, err := c.RefreshStats(ctx)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}

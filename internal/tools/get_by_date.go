@@ -41,7 +41,7 @@ func NewGetMessagesByDate(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 
 		tz, _ := req.GetArguments()["timezone"].(string)
 
-		body, err := c.GetMessagesByDate(chatID, date, tz)
+		body, err := c.GetMessagesByDate(ctx, chatID, date, tz)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}

@@ -28,7 +28,7 @@ func NewGetTopics(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		body, err := c.GetTopics(chatID)
+		body, err := c.GetTopics(ctx, chatID)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}

@@ -38,13 +38,19 @@ func NewGetMessages(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 		if v, ok := req.GetArguments()["limit"].(float64); ok && v > 0 {
 			limit = int(v)
 		}
+		if limit > 500 {
+			limit = 500
+		}
 
 		offset := 0
 		if v, ok := req.GetArguments()["offset"].(float64); ok && v > 0 {
 			offset = int(v)
 		}
+		if offset > 100000 {
+			offset = 100000
+		}
 
-		body, err := c.GetMessages(chatID, limit, offset)
+		body, err := c.GetMessages(ctx, chatID, limit, offset)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}

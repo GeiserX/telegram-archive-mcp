@@ -2,13 +2,15 @@ package config
 
 import (
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
 
 func init() {
-	// Load .env in the working directory; ignore error if the file is absent.
-	_ = godotenv.Load()
+	if strings.ToLower(os.Getenv("TRANSPORT")) != "stdio" {
+		_ = godotenv.Load()
+	}
 }
 
 type Config struct {

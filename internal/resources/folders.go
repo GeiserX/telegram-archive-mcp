@@ -18,7 +18,7 @@ func RegisterFolders(s *server.MCPServer, c *client.Client) {
 	)
 
 	s.AddResource(res, func(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-		body, err := c.GetFolders()
+		body, err := c.GetFolders(ctx)
 		if err != nil {
 			return nil, err
 		}

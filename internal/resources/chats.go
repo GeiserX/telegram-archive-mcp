@@ -18,7 +18,7 @@ func RegisterChats(s *server.MCPServer, c *client.Client) {
 	)
 
 	s.AddResource(res, func(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-		body, err := c.GetChats(100)
+		body, err := c.GetChats(ctx, 100)
 		if err != nil {
 			return nil, err
 		}

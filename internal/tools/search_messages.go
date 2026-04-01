@@ -43,8 +43,11 @@ func NewSearchMessages(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 		if v, ok := req.GetArguments()["limit"].(float64); ok && v > 0 {
 			limit = int(v)
 		}
+		if limit > 200 {
+			limit = 200
+		}
 
-		body, err := c.SearchMessages(chatID, query, limit)
+		body, err := c.SearchMessages(ctx, chatID, query, limit)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}

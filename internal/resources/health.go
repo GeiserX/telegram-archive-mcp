@@ -18,7 +18,7 @@ func RegisterHealth(s *server.MCPServer, c *client.Client) {
 	)
 
 	s.AddResource(res, func(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-		body, err := c.GetHealth()
+		body, err := c.GetHealth(ctx)
 		if err != nil {
 			return nil, err
 		}
