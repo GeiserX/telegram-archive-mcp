@@ -36,12 +36,20 @@ function getAssetName() {
   return `telegram-archive-mcp_${VERSION}_${platform}_${arch}.${ext}`;
 }
 
-function downloadFile(url) {
+// NOTE: No checksum verification is performed on the downloaded binary.
+// The download relies on HTTPS transport security from GitHub Releases.
+const MAX_REDIRECTS = 10;
+const REQUEST_TIMEOUT_MS = 30_000;
+
+function downloadFile(url, redirectCount = 0) {
   return new Promise((resolve, reject) => {
+    if (redirectCount > MAX_REDIRECTS) {
+      return reject(new Error(`Too many redirects (>${MAX_REDIRECTS})`));
+    }
     const get = url.startsWith("https") ? https.get : http.get;
-    get(url, (res) => {
+    const req = get(url, { timeout: REQUEST_TIMEOUT_MS }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        return downloadFile(res.headers.location).then(resolve, reject);
+        return downloadFile(res.headers.location, redirectCount + 1).then(resolve, reject);
       }
       if (res.statusCode !== 200) {
         return reject(new Error(`Download failed: HTTP ${res.statusCode}`));
@@ -50,7 +58,12 @@ function downloadFile(url) {
       res.on("data", (chunk) => chunks.push(chunk));
       res.on("end", () => resolve(Buffer.concat(chunks)));
       res.on("error", reject);
-    }).on("error", reject);
+    });
+    req.on("timeout", () => {
+      req.destroy();
+      reject(new Error(`Request timed out after ${REQUEST_TIMEOUT_MS}ms`));
+    });
+    req.on("error", reject);
   });
 }
 
@@ -58,9 +71,17 @@ async function extract(buffer, assetName) {
   fs.mkdirSync(BIN_DIR, { recursive: true });
 
   if (assetName.endsWith(".zip")) {
+    // .zip extraction: use PowerShell on Windows, unzip on Unix
     const tmpZip = path.join(BIN_DIR, "tmp.zip");
     fs.writeFileSync(tmpZip, buffer);
-    execSync(`unzip -o "${tmpZip}" "${BIN_NAME}" -d "${BIN_DIR}"`, { stdio: "ignore" });
+    if (process.platform === "win32") {
+      execSync(
+        `powershell -NoProfile -Command "Expand-Archive -Force -Path '${tmpZip}' -DestinationPath '${BIN_DIR}'"`,
+        { stdio: "ignore" }
+      );
+    } else {
+      execSync(`unzip -o "${tmpZip}" "${BIN_NAME}" -d "${BIN_DIR}"`, { stdio: "ignore" });
+    }
     fs.unlinkSync(tmpZip);
   } else {
     const tmpTar = path.join(BIN_DIR, "tmp.tar.gz");

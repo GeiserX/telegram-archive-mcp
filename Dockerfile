@@ -8,6 +8,7 @@ RUN CGO_ENABLED=0 go build -ldflags "-s -w" -o /out/telegram-archive-mcp ./cmd/s
 FROM alpine:3.23
 COPY --from=builder /out/telegram-archive-mcp /usr/local/bin/telegram-archive-mcp
 EXPOSE 8080
+ENV LISTEN_ADDR=0.0.0.0:8080
 ENV TELEGRAM_ARCHIVE_URL=http://telegram-archive:3000
 ENV TELEGRAM_ARCHIVE_USER=""
 ENV TELEGRAM_ARCHIVE_PASS=""

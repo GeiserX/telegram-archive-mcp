@@ -31,12 +31,14 @@ services:
   telegram-archive-mcp:
     image: drumsergio/telegram-archive-mcp:latest
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     environment:
       - TELEGRAM_ARCHIVE_URL=http://telegram-archive:3000
-      - TELEGRAM_ARCHIVE_USER=admin
-      - TELEGRAM_ARCHIVE_PASS=changeme
+      - TELEGRAM_ARCHIVE_USER=your-username
+      - TELEGRAM_ARCHIVE_PASS=your-password
 ```
+
+> **Security note:** The HTTP transport listens on `127.0.0.1:8080` by default. If you need to expose it on a network, place it behind a reverse proxy with authentication.
 
 ## Install via npm (stdio transport)
 
@@ -51,7 +53,7 @@ npm install -g telegram-archive-mcp
 telegram-archive-mcp
 ```
 
-This downloads the pre-built Go binary for your platform and runs it with stdio transport, compatible with any MCP client.
+This downloads the pre-built Go binary from GitHub Releases for your platform and runs it with stdio transport. Requires at least one [published release](https://github.com/GeiserX/telegram-archive-mcp/releases).
 
 ## Local build
 
@@ -70,8 +72,9 @@ go run ./cmd/server
 | Variable                | Default                    | Description                                      |
 |-------------------------|----------------------------|--------------------------------------------------|
 | `TELEGRAM_ARCHIVE_URL`  | `http://localhost:3000`    | Telegram-Archive instance URL (without trailing /)|
-| `TELEGRAM_ARCHIVE_USER` | _(empty)_                  | Basic auth username (if enabled)                 |
-| `TELEGRAM_ARCHIVE_PASS` | _(empty)_                  | Basic auth password (if enabled)                 |
+| `TELEGRAM_ARCHIVE_USER` | _(empty)_                  | Login username for session auth via `/api/login` |
+| `TELEGRAM_ARCHIVE_PASS` | _(empty)_                  | Login password for session auth via `/api/login` |
+| `LISTEN_ADDR`           | `127.0.0.1:8080`           | HTTP listen address (Docker sets `0.0.0.0:8080`) |
 | `TRANSPORT`             | _(empty = HTTP)_           | Set to `stdio` for stdio transport               |
 
 Put them in a `.env` file (from `.env.example`) or set them in the environment.
@@ -96,7 +99,6 @@ Tested with [Inspector](https://modelcontextprotocol.io/docs/tools/inspector) an
     "init_method": "initialize",
     "session_header": "Mcp-Session-Id"
   },
-  "logo_url": "https://raw.githubusercontent.com/GeiserX/telegram-archive-mcp/main/docs/images/logo.png",
   "contact_email": "acsdesk@protonmail.com",
   "legal_info_url": "https://github.com/GeiserX/telegram-archive-mcp/blob/main/LICENSE"
 }
