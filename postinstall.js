@@ -76,7 +76,7 @@ async function verifyChecksum(buffer, assetName, releaseUrlBase) {
 
   const expectedLine = checksumsText
     .split("\n")
-    .find((line) => line.includes(assetName));
+    .find((line) => line.endsWith("  " + assetName) || line.endsWith(" " + assetName));
 
   if (!expectedLine) {
     throw new Error(
