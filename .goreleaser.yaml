@@ -1,0 +1,89 @@
+project_name: telegram-archive-mcp
+release:
+  github:
+    owner: GeiserX
+    name: telegram-archive-mcp
+  draft: false
+  prerelease: auto # tag "v0.3.0-rc1" becomes pre-release
+
+builds:
+  - id: bin
+    main: ./cmd/server
+    goos: [linux, windows, darwin]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+      - -X github.com/geiserx/telegram-archive-mcp/version.Version={{ .Version }}
+      - -X github.com/geiserx/telegram-archive-mcp/version.Commit={{ .ShortCommit }}
+      - -X github.com/geiserx/telegram-archive-mcp/version.Date={{ .Date }}
+
+archives:
+  - id: dist
+    builds: [bin]
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: 'checksums.txt'
+
+dockers:
+  # ------------- amd64 -------------
+  - image_templates:
+      - "drumsergio/telegram-archive-mcp:{{ .Tag }}-amd64"
+      - "drumsergio/telegram-archive-mcp:latest-amd64"
+    dockerfile: Dockerfile
+    goos:   linux
+    goarch: amd64
+    use:    buildx
+    extra_files:
+      - go.mod
+      - go.sum
+      - cmd/
+      - internal/
+      - client/
+      - config/
+      - version/
+      - .goreleaser.yaml
+    build_flag_templates:
+      - "--platform=linux/amd64"
+  # ------------- arm64 -------------
+  - image_templates:
+      - "drumsergio/telegram-archive-mcp:{{ .Tag }}-arm64"
+      - "drumsergio/telegram-archive-mcp:latest-arm64"
+    dockerfile: Dockerfile
+    goos:   linux
+    goarch: arm64
+    use:    buildx
+    extra_files:
+      - go.mod
+      - go.sum
+      - cmd/
+      - internal/
+      - client/
+      - config/
+      - version/
+      - .goreleaser.yaml
+    build_flag_templates:
+      - "--platform=linux/arm64"
+
+docker_manifests:
+  # stitch the per-arch images into a combined tag = multi-arch
+  - name_template: 'drumsergio/telegram-archive-mcp:{{ .Tag }}'
+    image_templates:
+      - 'drumsergio/telegram-archive-mcp:{{ .Tag }}-amd64'
+      - 'drumsergio/telegram-archive-mcp:{{ .Tag }}-arm64'
+  - name_template: 'drumsergio/telegram-archive-mcp:latest'
+    image_templates:
+      - 'drumsergio/telegram-archive-mcp:latest-amd64'
+      - 'drumsergio/telegram-archive-mcp:latest-arm64'
+
+snapshot:
+  name_template: "snapshot-{{ .ShortCommit }}"
+
+changelog:
+  groups:
+    - title: "Features"
+      regexp: '^feat'
+    - title: "Fixes"
+      regexp: '^fix'

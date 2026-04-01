@@ -1,0 +1,33 @@
+{
+  "name": "telegram-archive-mcp",
+  "version": "0.0.1",
+  "description": "MCP server for Telegram Archive — search and browse Telegram chat history via the Model Context Protocol",
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GeiserX/telegram-archive-mcp.git"
+  },
+  "homepage": "https://github.com/GeiserX/telegram-archive-mcp",
+  "author": "GeiserX",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "telegram",
+    "telegram-archive",
+    "chat-history",
+    "message-search"
+  ],
+  "bin": {
+    "telegram-archive-mcp": "run.js"
+  },
+  "scripts": {
+    "postinstall": "node postinstall.js"
+  },
+  "files": [
+    "run.js",
+    "postinstall.js"
+  ],
+  "engines": {
+    "node": ">=18"
+  }
+}
