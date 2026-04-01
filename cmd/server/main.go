@@ -24,7 +24,7 @@ func main() {
 	// Create MCP server
 	s := server.NewMCPServer(
 		"Telegram-Archive MCP Bridge",
-		"0.0.1",
+		version.Version,
 		server.WithToolCapabilities(true),
 		server.WithRecovery(),
 	)

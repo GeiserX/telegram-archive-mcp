@@ -20,8 +20,8 @@ type Config struct {
 func Load() Config {
 	return Config{
 		BaseURL: getEnv("TELEGRAM_ARCHIVE_URL", "http://localhost:3000"),
-		User:    getEnv("TELEGRAM_ARCHIVE_USER", "admin"),
-		Pass:    getEnv("TELEGRAM_ARCHIVE_PASS", "admin"),
+		User:    getEnv("TELEGRAM_ARCHIVE_USER", ""),
+		Pass:    getEnv("TELEGRAM_ARCHIVE_PASS", ""),
 	}
 }
 

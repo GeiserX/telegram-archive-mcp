@@ -7,7 +7,9 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
+	"time"
 )
 
 // Client wraps all HTTP interaction with telegram-archive's REST API.
@@ -25,8 +27,8 @@ type Client struct {
 // New creates a Client for the given base URL and credentials.
 func New(base, user, pass string) *Client {
 	return &Client{
-		base: base,
-		hc:   &http.Client{},
+		base: strings.TrimRight(base, "/"),
+		hc:   &http.Client{Timeout: 30 * time.Second},
 		user: user,
 		pass: pass,
 	}
@@ -107,12 +109,11 @@ func (c *Client) do(req *http.Request, retry bool) ([]byte, error) {
 }
 
 func (c *Client) buildURL(path string, q url.Values) string {
-	u, _ := url.Parse(c.base)
-	u.Path = path
-	if q != nil {
-		u.RawQuery = q.Encode()
+	u := c.base + path
+	if q != nil && len(q) > 0 {
+		u += "?" + q.Encode()
 	}
-	return u.String()
+	return u
 }
 
 // --- Resource methods -------------------------------------------------------
