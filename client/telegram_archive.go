@@ -71,10 +71,10 @@ func (c *Client) login(ctx context.Context) error {
 	return fmt.Errorf("login: viewer_auth cookie not found in response")
 }
 
-// do executes an authenticated request. On 401 it re-authenticates once and retries.
-func (c *Client) do(req *http.Request, retry bool) ([]byte, error) {
-	ctx := req.Context()
-
+// doAuth executes an authenticated request. On 401 it re-authenticates once
+// and retries. The body parameter is kept so retries can replay it (the
+// original request body is consumed by the first attempt).
+func (c *Client) doAuth(ctx context.Context, method, url string, body []byte, retry bool) ([]byte, error) {
 	c.mu.Lock()
 	if c.cookie == "" {
 		if err := c.login(ctx); err != nil {
@@ -85,6 +85,14 @@ func (c *Client) do(req *http.Request, retry bool) ([]byte, error) {
 	cookie := c.cookie
 	c.mu.Unlock()
 
+	var bodyReader io.Reader
+	if body != nil {
+		bodyReader = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
 	req.Header.Set("Cookie", "viewer_auth="+cookie)
 
 	resp, err := c.hc.Do(req)
@@ -99,12 +107,7 @@ func (c *Client) do(req *http.Request, retry bool) ([]byte, error) {
 		c.cookie = ""
 		c.mu.Unlock()
 
-		// Build a fresh request (body may have been consumed).
-		newReq, err := http.NewRequestWithContext(ctx, req.Method, req.URL.String(), nil)
-		if err != nil {
-			return nil, fmt.Errorf("rebuild request after 401: %w", err)
-		}
-		return c.do(newReq, false)
+		return c.doAuth(ctx, method, url, body, false)
 	}
 
 	if resp.StatusCode >= 400 {
@@ -126,11 +129,7 @@ func (c *Client) buildURL(path string, q url.Values) string {
 
 // GetStats returns global backup statistics.
 func (c *Client) GetStats(ctx context.Context) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.buildURL("/api/stats", nil), nil)
-	if err != nil {
-		return nil, fmt.Errorf("GetStats: build request: %w", err)
-	}
-	return c.do(req, true)
+	return c.doAuth(ctx, "GET", c.buildURL("/api/stats", nil), nil, true)
 }
 
 // GetChats returns a list of chats.
@@ -139,29 +138,17 @@ func (c *Client) GetChats(ctx context.Context, limit int) ([]byte, error) {
 	if limit > 0 {
 		q.Set("limit", fmt.Sprintf("%d", limit))
 	}
-	req, err := http.NewRequestWithContext(ctx, "GET", c.buildURL("/api/chats", q), nil)
-	if err != nil {
-		return nil, fmt.Errorf("GetChats: build request: %w", err)
-	}
-	return c.do(req, true)
+	return c.doAuth(ctx, "GET", c.buildURL("/api/chats", q), nil, true)
 }
 
 // GetFolders returns the list of chat folders.
 func (c *Client) GetFolders(ctx context.Context) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.buildURL("/api/folders", nil), nil)
-	if err != nil {
-		return nil, fmt.Errorf("GetFolders: build request: %w", err)
-	}
-	return c.do(req, true)
+	return c.doAuth(ctx, "GET", c.buildURL("/api/folders", nil), nil, true)
 }
 
 // GetHealth returns the health status.
 func (c *Client) GetHealth(ctx context.Context) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", c.buildURL("/api/health", nil), nil)
-	if err != nil {
-		return nil, fmt.Errorf("GetHealth: build request: %w", err)
-	}
-	return c.do(req, true)
+	return c.doAuth(ctx, "GET", c.buildURL("/api/health", nil), nil, true)
 }
 
 // --- Tool methods -----------------------------------------------------------
@@ -174,11 +161,7 @@ func (c *Client) SearchMessages(ctx context.Context, chatID, query string, limit
 		q.Set("limit", fmt.Sprintf("%d", limit))
 	}
 	path := fmt.Sprintf("/api/chats/%s/messages", url.PathEscape(chatID))
-	req, err := http.NewRequestWithContext(ctx, "GET", c.buildURL(path, q), nil)
-	if err != nil {
-		return nil, fmt.Errorf("SearchMessages: build request: %w", err)
-	}
-	return c.do(req, true)
+	return c.doAuth(ctx, "GET", c.buildURL(path, q), nil, true)
 }
 
 // GetMessages retrieves messages from a chat with pagination.
@@ -191,21 +174,13 @@ func (c *Client) GetMessages(ctx context.Context, chatID string, limit, offset i
 		q.Set("offset", fmt.Sprintf("%d", offset))
 	}
 	path := fmt.Sprintf("/api/chats/%s/messages", url.PathEscape(chatID))
-	req, err := http.NewRequestWithContext(ctx, "GET", c.buildURL(path, q), nil)
-	if err != nil {
-		return nil, fmt.Errorf("GetMessages: build request: %w", err)
-	}
-	return c.do(req, true)
+	return c.doAuth(ctx, "GET", c.buildURL(path, q), nil, true)
 }
 
 // GetPinnedMessages returns pinned messages for a chat.
 func (c *Client) GetPinnedMessages(ctx context.Context, chatID string) ([]byte, error) {
 	path := fmt.Sprintf("/api/chats/%s/pinned", url.PathEscape(chatID))
-	req, err := http.NewRequestWithContext(ctx, "GET", c.buildURL(path, nil), nil)
-	if err != nil {
-		return nil, fmt.Errorf("GetPinnedMessages: build request: %w", err)
-	}
-	return c.do(req, true)
+	return c.doAuth(ctx, "GET", c.buildURL(path, nil), nil, true)
 }
 
 // GetMessagesByDate retrieves messages from a specific date.
@@ -216,38 +191,22 @@ func (c *Client) GetMessagesByDate(ctx context.Context, chatID, date, timezone s
 		q.Set("timezone", timezone)
 	}
 	path := fmt.Sprintf("/api/chats/%s/messages/by-date", url.PathEscape(chatID))
-	req, err := http.NewRequestWithContext(ctx, "GET", c.buildURL(path, q), nil)
-	if err != nil {
-		return nil, fmt.Errorf("GetMessagesByDate: build request: %w", err)
-	}
-	return c.do(req, true)
+	return c.doAuth(ctx, "GET", c.buildURL(path, q), nil, true)
 }
 
 // GetChatStats returns statistics for a specific chat.
 func (c *Client) GetChatStats(ctx context.Context, chatID string) ([]byte, error) {
 	path := fmt.Sprintf("/api/chats/%s/stats", url.PathEscape(chatID))
-	req, err := http.NewRequestWithContext(ctx, "GET", c.buildURL(path, nil), nil)
-	if err != nil {
-		return nil, fmt.Errorf("GetChatStats: build request: %w", err)
-	}
-	return c.do(req, true)
+	return c.doAuth(ctx, "GET", c.buildURL(path, nil), nil, true)
 }
 
 // GetTopics returns topics for a chat.
 func (c *Client) GetTopics(ctx context.Context, chatID string) ([]byte, error) {
 	path := fmt.Sprintf("/api/chats/%s/topics", url.PathEscape(chatID))
-	req, err := http.NewRequestWithContext(ctx, "GET", c.buildURL(path, nil), nil)
-	if err != nil {
-		return nil, fmt.Errorf("GetTopics: build request: %w", err)
-	}
-	return c.do(req, true)
+	return c.doAuth(ctx, "GET", c.buildURL(path, nil), nil, true)
 }
 
 // RefreshStats triggers a forced recalculation of global stats.
 func (c *Client) RefreshStats(ctx context.Context) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, "POST", c.buildURL("/api/stats/refresh", nil), nil)
-	if err != nil {
-		return nil, fmt.Errorf("RefreshStats: build request: %w", err)
-	}
-	return c.do(req, true)
+	return c.doAuth(ctx, "POST", c.buildURL("/api/stats/refresh", nil), nil, true)
 }
