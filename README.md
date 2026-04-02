@@ -8,7 +8,11 @@
   <a href="https://github.com/GeiserX/telegram-archive-mcp/blob/main/LICENSE"><img src="https://img.shields.io/github/license/GeiserX/telegram-archive-mcp?style=flat-square" alt="License"/></a>
 </p>
 <p align="center">
+  <a href="https://registry.modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-Official%20Registry-E6522C?style=flat-square" alt="Official MCP Registry"/></a>
   <a href="https://glama.ai/mcp/servers/GeiserX/telegram-archive-mcp"><img src="https://glama.ai/mcp/servers/GeiserX/telegram-archive-mcp/badges/score.svg" alt="Glama MCP Server" /></a>
+  <a href="https://mcpservers.org/servers/geiserx/telegram-archive-mcp"><img src="https://img.shields.io/badge/MCPServers.org-listed-green?style=flat-square" alt="MCPServers.org"/></a>
+  <a href="https://mcp.so/server/telegram-archive-mcp"><img src="https://img.shields.io/badge/mcp.so-listed-blue?style=flat-square" alt="mcp.so"/></a>
+  <a href="https://github.com/toolsdk-ai/toolsdk-mcp-registry"><img src="https://img.shields.io/badge/ToolSDK-Registry-orange?style=flat-square" alt="ToolSDK Registry"/></a>
 </p>
 
 <p align="center"><strong>A tiny bridge that exposes any Telegram-Archive instance as an MCP server, enabling LLMs to search messages, browse chats, and access archived Telegram history.</strong></p>
