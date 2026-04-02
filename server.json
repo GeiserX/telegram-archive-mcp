@@ -1,0 +1,73 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.GeiserX/telegram-archive-mcp",
+  "description": "MCP server for Telegram Archive — search messages, browse chats, and access archived Telegram history",
+  "repository": {
+    "url": "https://github.com/GeiserX/telegram-archive-mcp",
+    "source": "github"
+  },
+  "version": "0.0.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "telegram-archive-mcp",
+      "version": "0.0.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "TELEGRAM_ARCHIVE_URL",
+          "description": "Telegram Archive instance URL (e.g. http://localhost:3000)",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "TELEGRAM_ARCHIVE_USER",
+          "description": "Telegram Archive login username",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "TELEGRAM_ARCHIVE_PASS",
+          "description": "Telegram Archive login password",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        }
+      ]
+    },
+    {
+      "registryType": "oci",
+      "identifier": "drumsergio/telegram-archive-mcp:v0.0.1",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "TELEGRAM_ARCHIVE_URL",
+          "description": "Telegram Archive instance URL (e.g. http://localhost:3000)",
+          "isRequired": true,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "TELEGRAM_ARCHIVE_USER",
+          "description": "Telegram Archive login username",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        },
+        {
+          "name": "TELEGRAM_ARCHIVE_PASS",
+          "description": "Telegram Archive login password",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

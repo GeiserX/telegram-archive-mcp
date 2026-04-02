@@ -7,6 +7,9 @@
   <a href="https://github.com/GeiserX/telegram-archive-mcp/stargazers"><img src="https://img.shields.io/github/stars/GeiserX/telegram-archive-mcp?style=flat-square&logo=github" alt="GitHub Stars"/></a>
   <a href="https://github.com/GeiserX/telegram-archive-mcp/blob/main/LICENSE"><img src="https://img.shields.io/github/license/GeiserX/telegram-archive-mcp?style=flat-square" alt="License"/></a>
 </p>
+<p align="center">
+  <a href="https://glama.ai/mcp/servers/GeiserX/telegram-archive-mcp"><img src="https://glama.ai/mcp/servers/GeiserX/telegram-archive-mcp/badges/score.svg" alt="Glama MCP Server" /></a>
+</p>
 
 <p align="center"><strong>A tiny bridge that exposes any Telegram-Archive instance as an MCP server, enabling LLMs to search messages, browse chats, and access archived Telegram history.</strong></p>
 
