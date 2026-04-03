@@ -6,12 +6,12 @@
     "url": "https://github.com/GeiserX/telegram-archive-mcp",
     "source": "github"
   },
-  "version": "0.0.1",
+  "version": "0.0.2",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "telegram-archive-mcp",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "transport": {
         "type": "stdio"
       },
@@ -41,7 +41,7 @@
     },
     {
       "registryType": "oci",
-      "identifier": "drumsergio/telegram-archive-mcp:v0.0.1",
+      "identifier": "drumsergio/telegram-archive-mcp:v0.0.2",
       "transport": {
         "type": "stdio"
       },
