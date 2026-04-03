@@ -1,7 +1,7 @@
 {
   "name": "telegram-archive-mcp",
   "mcpName": "io.github.GeiserX/telegram-archive-mcp",
-  "version": "0.0.2",
+  "version": "0.1.0",
   "description": "MCP server for Telegram Archive — search and browse Telegram chat history via the Model Context Protocol",
   "license": "GPL-3.0",
   "repository": {
