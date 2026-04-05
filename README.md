@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/images/banner.svg" alt="Telegram Archive MCP banner" width="900"/>
+</p>
+
 <h1 align="center">Telegram-Archive-MCP</h1>
 
 <p align="center">
