@@ -141,3 +141,13 @@ Telegram-Archive-MCP follows the [Contributor Covenant](http://contributor-coven
 - [genieacs-mcp](https://github.com/GeiserX/genieacs-mcp) — TR-069 device management
 - [lynxprompt-mcp](https://github.com/GeiserX/lynxprompt-mcp) — AI configuration blueprints
 - [pumperly-mcp](https://github.com/GeiserX/pumperly-mcp) — Fuel and EV charging prices
+
+## Related Projects
+
+| Project | Description |
+|---------|-------------|
+| [Telegram-Archive](https://github.com/GeiserX/Telegram-Archive) | Automated, incremental Telegram backups with a local web viewer |
+| [telegram-delay-channel-cloner](https://github.com/GeiserX/telegram-delay-channel-cloner) | Telegram bot that relays messages between channels with configurable delay |
+| [telegram-slskd-local-bot](https://github.com/GeiserX/telegram-slskd-local-bot) | Automated music discovery and download via Telegram bot with Soulseek |
+| [paperless-telegram-bot](https://github.com/GeiserX/paperless-telegram-bot) | Manage Paperless-NGX documents entirely through Telegram |
+| [n8n-nodes-telegram-archive](https://github.com/GeiserX/n8n-nodes-telegram-archive) | n8n community node for Telegram-Archive |
