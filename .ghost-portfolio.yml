@@ -1,0 +1,7 @@
+description: "MCP server for Telegram-Archive — lets LLMs search messages, browse chats, and access archived Telegram history."
+personalNote: "I archive all my Telegram messages locally with Telegram-Archive. This MCP bridge lets me ask my AI assistant to find old conversations, search across chats, and pull up messages by date — without ever opening the Telegram app."
+keyFeatures:
+  - "Full-text message search, date-range retrieval, and pinned message access"
+  - "Read-only resources for archive stats, chat lists, folders, and health"
+  - "Listed on the official MCP Registry, Glama, MCPServers.org, mcp.so, and ToolSDK"
+techStack: "Go, MCP-GO, Docker, GoReleaser, npm"
