@@ -28,3 +28,4 @@ ignore:
   - "**/testdata/**"
   - "**/mocks/**"
   - "**/mock_*.go"
+  - "cmd/**/main.go"
