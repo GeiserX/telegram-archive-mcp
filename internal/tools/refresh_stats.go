@@ -13,7 +13,7 @@ func NewRefreshStats(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 	tool := mcp.NewTool("refresh_stats",
 		mcp.WithDescription("Force recalculation of global telegram-archive statistics"),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
-			DestructiveHint: boolPtr(true),
+			DestructiveHint: boolPtr(false),
 			IdempotentHint:  boolPtr(true),
 		}),
 	)
