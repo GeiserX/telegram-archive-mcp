@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf8"
 )
 
 const maxResponseBody = 10 << 20 // 10 MB
@@ -116,11 +117,22 @@ func (c *Client) doAuth(ctx context.Context, method, rawurl string, body []byte,
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		msg := string(b)
 		if len(msg) > 200 {
-			msg = msg[:200] + "..."
+			cut := 200
+			for cut > 0 && !utf8.RuneStart(msg[cut]) {
+				cut--
+			}
+			msg = msg[:cut] + "..."
 		}
 		return nil, fmt.Errorf("telegram-archive error %d: %s", resp.StatusCode, msg)
 	}
-	return io.ReadAll(io.LimitReader(resp.Body, maxResponseBody))
+	b, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBody+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > maxResponseBody {
+		return nil, fmt.Errorf("telegram-archive response exceeds %d bytes", maxResponseBody)
+	}
+	return b, nil
 }
 
 func (c *Client) buildURL(path string, q url.Values) string {

@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/geiserx/telegram-archive-mcp/client"
 	"github.com/geiserx/telegram-archive-mcp/config"
@@ -103,8 +104,16 @@ func main() {
 			addr = "127.0.0.1:8080"
 		}
 		log.Printf("Telegram-Archive MCP bridge listening on %s", addr)
-		if err := httpSrv.Start(addr); err != nil {
-			log.Fatalf("server error: %v", err)
+		go func() {
+			if err := httpSrv.Start(addr); err != nil {
+				log.Fatalf("server error: %v", err)
+			}
+		}()
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := httpSrv.Shutdown(shutdownCtx); err != nil {
+			log.Printf("HTTP shutdown error: %v", err)
 		}
 	}
 }

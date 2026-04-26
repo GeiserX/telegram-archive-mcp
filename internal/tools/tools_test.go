@@ -839,11 +839,11 @@ func TestNewRefreshStats_ReturnsToolErrorOnAPIFailure(t *testing.T) {
 	}
 }
 
-func TestNewRefreshStats_ToolIsDestructive(t *testing.T) {
+func TestNewRefreshStats_ToolIsNotDestructive(t *testing.T) {
 	c := client.New("http://fake", "", "")
 	tool, _ := NewRefreshStats(c)
-	if tool.Annotations.DestructiveHint == nil || !*tool.Annotations.DestructiveHint {
-		t.Error("refresh_stats should have DestructiveHint=true")
+	if tool.Annotations.DestructiveHint == nil || *tool.Annotations.DestructiveHint {
+		t.Error("refresh_stats should have DestructiveHint=false")
 	}
 }
 
