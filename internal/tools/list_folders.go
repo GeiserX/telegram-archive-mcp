@@ -8,26 +8,17 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
-func NewGetTopics(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
+func NewListFolders(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 
-	tool := mcp.NewTool("get_topics",
-		mcp.WithDescription("Get topics (forum threads) from a Telegram chat"),
-		mcp.WithString("chat_id",
-			mcp.Required(),
-			mcp.Description("Chat ID to get topics from"),
-		),
+	tool := mcp.NewTool("list_folders",
+		mcp.WithDescription("List all Telegram chat folders"),
 		mcp.WithToolAnnotation(mcp.ToolAnnotation{
 			ReadOnlyHint: boolPtr(true),
 		}),
 	)
 
 	handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		chatID, err := req.RequireString("chat_id")
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-
-		body, err := c.GetTopics(ctx, chatID)
+		body, err := c.GetFolders(ctx)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}

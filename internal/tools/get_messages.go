@@ -1,17 +1,13 @@
-// internal/tools/get_messages.go
 package tools
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/geiserx/telegram-archive-mcp/client"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// NewGetMessages builds the tool definition and handler for retrieving
-// messages from a chat with pagination.
 func NewGetMessages(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 
 	tool := mcp.NewTool("get_messages",
@@ -26,6 +22,9 @@ func NewGetMessages(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 		mcp.WithNumber("offset",
 			mcp.Description("Pagination offset (default 0)"),
 		),
+		mcp.WithToolAnnotation(mcp.ToolAnnotation{
+			ReadOnlyHint: boolPtr(true),
+		}),
 	)
 
 	handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -55,9 +54,7 @@ func NewGetMessages(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		return mcp.NewToolResultText(
-			fmt.Sprintf("Messages: %s", string(body)),
-		), nil
+		return mcp.NewToolResultText(string(body)), nil
 	}
 
 	return tool, handler
