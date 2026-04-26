@@ -57,6 +57,130 @@ func resultText(t *testing.T, result *mcp.CallToolResult) string {
 	return tc.Text
 }
 
+// --- ListChats ---
+
+func TestNewListChats_ReturnsResultOnSuccess(t *testing.T) {
+	ts, c := newTestClient(t, map[string]http.HandlerFunc{
+		"/api/chats": func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(`[{"id":"c1","name":"Test"}]`))
+		},
+	})
+	defer ts.Close()
+
+	_, handler := NewListChats(c)
+	req := makeToolRequest(map[string]any{"limit": float64(50)})
+
+	result, err := handler(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("result is error: %s", resultText(t, result))
+	}
+	text := resultText(t, result)
+	if !strings.Contains(text, `"id":"c1"`) {
+		t.Errorf("unexpected text: %s", text)
+	}
+}
+
+func TestNewListChats_DefaultsLimitTo100(t *testing.T) {
+	ts, c := newTestClient(t, map[string]http.HandlerFunc{
+		"/api/chats": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "100" {
+				t.Errorf("limit = %q, want 100", r.URL.Query().Get("limit"))
+			}
+			w.Write([]byte(`[]`))
+		},
+	})
+	defer ts.Close()
+
+	_, handler := NewListChats(c)
+	req := makeToolRequest(map[string]any{})
+
+	_, err := handler(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+}
+
+func TestNewListChats_CapsLimitAt500(t *testing.T) {
+	ts, c := newTestClient(t, map[string]http.HandlerFunc{
+		"/api/chats": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("limit") != "500" {
+				t.Errorf("limit = %q, want 500 (capped)", r.URL.Query().Get("limit"))
+			}
+			w.Write([]byte(`[]`))
+		},
+	})
+	defer ts.Close()
+
+	_, handler := NewListChats(c)
+	req := makeToolRequest(map[string]any{"limit": float64(9999)})
+
+	_, err := handler(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+}
+
+func TestNewListChats_ToolHasCorrectName(t *testing.T) {
+	c := client.New("http://fake", "", "")
+	tool, _ := NewListChats(c)
+	if tool.Name != "list_chats" {
+		t.Errorf("tool name = %q, want %q", tool.Name, "list_chats")
+	}
+}
+
+func TestNewListChats_ToolIsReadOnly(t *testing.T) {
+	c := client.New("http://fake", "", "")
+	tool, _ := NewListChats(c)
+	if tool.Annotations.ReadOnlyHint == nil || !*tool.Annotations.ReadOnlyHint {
+		t.Error("list_chats should have ReadOnlyHint=true")
+	}
+}
+
+// --- ListFolders ---
+
+func TestNewListFolders_ReturnsResultOnSuccess(t *testing.T) {
+	ts, c := newTestClient(t, map[string]http.HandlerFunc{
+		"/api/folders": func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(`[{"id":1,"title":"Work"}]`))
+		},
+	})
+	defer ts.Close()
+
+	_, handler := NewListFolders(c)
+	req := makeToolRequest(map[string]any{})
+
+	result, err := handler(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("result is error: %s", resultText(t, result))
+	}
+	text := resultText(t, result)
+	if !strings.Contains(text, "Work") {
+		t.Errorf("unexpected text: %s", text)
+	}
+}
+
+func TestNewListFolders_ToolHasCorrectName(t *testing.T) {
+	c := client.New("http://fake", "", "")
+	tool, _ := NewListFolders(c)
+	if tool.Name != "list_folders" {
+		t.Errorf("tool name = %q, want %q", tool.Name, "list_folders")
+	}
+}
+
+func TestNewListFolders_ToolIsReadOnly(t *testing.T) {
+	c := client.New("http://fake", "", "")
+	tool, _ := NewListFolders(c)
+	if tool.Annotations.ReadOnlyHint == nil || !*tool.Annotations.ReadOnlyHint {
+		t.Error("list_folders should have ReadOnlyHint=true")
+	}
+}
+
 // --- SearchMessages ---
 
 func TestNewSearchMessages_ReturnsResultOnSuccess(t *testing.T) {
@@ -200,6 +324,14 @@ func TestNewSearchMessages_ReturnsToolErrorOnAPIFailure(t *testing.T) {
 	}
 }
 
+func TestNewSearchMessages_ToolIsReadOnly(t *testing.T) {
+	c := client.New("http://fake", "", "")
+	tool, _ := NewSearchMessages(c)
+	if tool.Annotations.ReadOnlyHint == nil || !*tool.Annotations.ReadOnlyHint {
+		t.Error("search_messages should have ReadOnlyHint=true")
+	}
+}
+
 // --- GetMessages ---
 
 func TestNewGetMessages_ReturnsResultOnSuccess(t *testing.T) {
@@ -332,6 +464,14 @@ func TestNewGetMessages_ReturnsToolErrorOnAPIFailure(t *testing.T) {
 	}
 }
 
+func TestNewGetMessages_ToolIsReadOnly(t *testing.T) {
+	c := client.New("http://fake", "", "")
+	tool, _ := NewGetMessages(c)
+	if tool.Annotations.ReadOnlyHint == nil || !*tool.Annotations.ReadOnlyHint {
+		t.Error("get_messages should have ReadOnlyHint=true")
+	}
+}
+
 // --- GetPinnedMessages ---
 
 func TestNewGetPinnedMessages_ReturnsResultOnSuccess(t *testing.T) {
@@ -453,6 +593,29 @@ func TestNewGetMessagesByDate_ReturnErrorWhenDateMissing(t *testing.T) {
 	}
 	if !result.IsError {
 		t.Error("expected IsError when date missing")
+	}
+}
+
+func TestNewGetMessagesByDate_ReturnErrorOnInvalidDateFormat(t *testing.T) {
+	ts, c := newTestClient(t, nil)
+	defer ts.Close()
+
+	_, handler := NewGetMessagesByDate(c)
+	req := makeToolRequest(map[string]any{
+		"chat_id": "c1",
+		"date":    "15/01/2025",
+	})
+
+	result, err := handler(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if !result.IsError {
+		t.Error("expected IsError on invalid date format")
+	}
+	text := resultText(t, result)
+	if !strings.Contains(text, "YYYY-MM-DD") {
+		t.Errorf("error should mention expected format, got: %s", text)
 	}
 }
 
@@ -673,6 +836,14 @@ func TestNewRefreshStats_ReturnsToolErrorOnAPIFailure(t *testing.T) {
 	}
 	if !result.IsError {
 		t.Error("expected IsError on API failure")
+	}
+}
+
+func TestNewRefreshStats_ToolIsDestructive(t *testing.T) {
+	c := client.New("http://fake", "", "")
+	tool, _ := NewRefreshStats(c)
+	if tool.Annotations.DestructiveHint == nil || !*tool.Annotations.DestructiveHint {
+		t.Error("refresh_stats should have DestructiveHint=true")
 	}
 }
 

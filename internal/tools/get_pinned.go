@@ -1,17 +1,13 @@
-// internal/tools/get_pinned.go
 package tools
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/geiserx/telegram-archive-mcp/client"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// NewGetPinnedMessages builds the tool definition and handler for retrieving
-// pinned messages from a chat.
 func NewGetPinnedMessages(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 
 	tool := mcp.NewTool("get_pinned_messages",
@@ -20,6 +16,9 @@ func NewGetPinnedMessages(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 			mcp.Required(),
 			mcp.Description("Chat ID to get pinned messages from"),
 		),
+		mcp.WithToolAnnotation(mcp.ToolAnnotation{
+			ReadOnlyHint: boolPtr(true),
+		}),
 	)
 
 	handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -33,9 +32,7 @@ func NewGetPinnedMessages(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		return mcp.NewToolResultText(
-			fmt.Sprintf("Pinned messages: %s", string(body)),
-		), nil
+		return mcp.NewToolResultText(string(body)), nil
 	}
 
 	return tool, handler

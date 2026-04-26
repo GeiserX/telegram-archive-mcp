@@ -1,17 +1,13 @@
-// internal/tools/get_chat_stats.go
 package tools
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/geiserx/telegram-archive-mcp/client"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// NewGetChatStats builds the tool definition and handler for retrieving
-// statistics for a specific chat.
 func NewGetChatStats(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 
 	tool := mcp.NewTool("get_chat_stats",
@@ -20,6 +16,9 @@ func NewGetChatStats(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 			mcp.Required(),
 			mcp.Description("Chat ID to get statistics for"),
 		),
+		mcp.WithToolAnnotation(mcp.ToolAnnotation{
+			ReadOnlyHint: boolPtr(true),
+		}),
 	)
 
 	handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -33,9 +32,7 @@ func NewGetChatStats(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		return mcp.NewToolResultText(
-			fmt.Sprintf("Chat stats: %s", string(body)),
-		), nil
+		return mcp.NewToolResultText(string(body)), nil
 	}
 
 	return tool, handler

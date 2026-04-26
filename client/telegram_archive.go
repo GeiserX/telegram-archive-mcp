@@ -13,6 +13,8 @@ import (
 	"time"
 )
 
+const maxResponseBody = 10 << 20 // 10 MB
+
 // Client wraps all HTTP interaction with telegram-archive's REST API.
 // It performs cookie-based authentication (POST /api/login) and
 // transparently re-authenticates on 401 responses.
@@ -57,7 +59,7 @@ func (c *Client) login(ctx context.Context) error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		b, _ := io.ReadAll(resp.Body)
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
 		return fmt.Errorf("login failed (%d): %s", resp.StatusCode, string(b))
 	}
 
@@ -74,7 +76,7 @@ func (c *Client) login(ctx context.Context) error {
 // doAuth executes an authenticated request. On 401 it re-authenticates once
 // and retries. The body parameter is kept so retries can replay it (the
 // original request body is consumed by the first attempt).
-func (c *Client) doAuth(ctx context.Context, method, url string, body []byte, retry bool) ([]byte, error) {
+func (c *Client) doAuth(ctx context.Context, method, rawurl string, body []byte, retry bool) ([]byte, error) {
 	c.mu.Lock()
 	if c.cookie == "" {
 		if err := c.login(ctx); err != nil {
@@ -89,11 +91,11 @@ func (c *Client) doAuth(ctx context.Context, method, url string, body []byte, re
 	if body != nil {
 		bodyReader = bytes.NewReader(body)
 	}
-	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
+	req, err := http.NewRequestWithContext(ctx, method, rawurl, bodyReader)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
-	req.Header.Set("Cookie", "viewer_auth="+cookie)
+	req.AddCookie(&http.Cookie{Name: "viewer_auth", Value: cookie})
 
 	resp, err := c.hc.Do(req)
 	if err != nil {
@@ -107,14 +109,18 @@ func (c *Client) doAuth(ctx context.Context, method, url string, body []byte, re
 		c.cookie = ""
 		c.mu.Unlock()
 
-		return c.doAuth(ctx, method, url, body, false)
+		return c.doAuth(ctx, method, rawurl, body, false)
 	}
 
 	if resp.StatusCode >= 400 {
-		b, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("telegram-archive error %d: %s", resp.StatusCode, string(b))
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+		msg := string(b)
+		if len(msg) > 200 {
+			msg = msg[:200] + "..."
+		}
+		return nil, fmt.Errorf("telegram-archive error %d: %s", resp.StatusCode, msg)
 	}
-	return io.ReadAll(resp.Body)
+	return io.ReadAll(io.LimitReader(resp.Body, maxResponseBody))
 }
 
 func (c *Client) buildURL(path string, q url.Values) string {

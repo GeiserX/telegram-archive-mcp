@@ -1,17 +1,14 @@
-// internal/tools/get_by_date.go
 package tools
 
 import (
 	"context"
-	"fmt"
+	"time"
 
 	"github.com/geiserx/telegram-archive-mcp/client"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
-// NewGetMessagesByDate builds the tool definition and handler for retrieving
-// messages from a specific date.
 func NewGetMessagesByDate(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 
 	tool := mcp.NewTool("get_messages_by_date",
@@ -27,6 +24,9 @@ func NewGetMessagesByDate(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 		mcp.WithString("timezone",
 			mcp.Description("IANA timezone (e.g. Europe/Madrid). Optional."),
 		),
+		mcp.WithToolAnnotation(mcp.ToolAnnotation{
+			ReadOnlyHint: boolPtr(true),
+		}),
 	)
 
 	handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -39,6 +39,10 @@ func NewGetMessagesByDate(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
+		if _, err := time.Parse("2006-01-02", date); err != nil {
+			return mcp.NewToolResultError("invalid date format: expected YYYY-MM-DD"), nil
+		}
+
 		tz, _ := req.GetArguments()["timezone"].(string)
 
 		body, err := c.GetMessagesByDate(ctx, chatID, date, tz)
@@ -46,9 +50,7 @@ func NewGetMessagesByDate(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		return mcp.NewToolResultText(
-			fmt.Sprintf("Messages by date: %s", string(body)),
-		), nil
+		return mcp.NewToolResultText(string(body)), nil
 	}
 
 	return tool, handler
