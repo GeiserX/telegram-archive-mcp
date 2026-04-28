@@ -1,4 +1,4 @@
-# AGENTS.md — Telegram Archive MCP
+# CLAUDE.md — Telegram Archive MCP
 
 ## Project Overview
 
