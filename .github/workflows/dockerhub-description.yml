@@ -6,7 +6,7 @@ on:
     paths: [README.md]
 jobs:
   update:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
       - uses: peter-evans/dockerhub-description@v4
