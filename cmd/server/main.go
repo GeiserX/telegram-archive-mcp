@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"crypto/subtle"
 	"fmt"
 	"log"
+	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strings"
@@ -17,6 +20,29 @@ import (
 	"github.com/geiserx/telegram-archive-mcp/version"
 	"github.com/mark3labs/mcp-go/server"
 )
+
+func isLoopbackAddr(addr string) bool {
+	host, _, err := net.SplitHostPort(addr)
+	if err != nil {
+		return false
+	}
+	if host == "" || host == "localhost" {
+		return true
+	}
+	ip := net.ParseIP(host)
+	return ip != nil && ip.IsLoopback()
+}
+
+func bearerAuth(next http.Handler, token string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		got := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if subtle.ConstantTimeCompare([]byte(got), []byte(token)) != 1 {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
 
 func main() {
 	// Handle --help / -h / --version gracefully so MCP client probes don't hang.
@@ -103,17 +129,39 @@ func main() {
 		if addr == "" {
 			addr = "127.0.0.1:8080"
 		}
-		log.Printf("Telegram-Archive MCP bridge listening on %s", addr)
-		go func() {
-			if err := httpSrv.Start(addr); err != nil {
-				log.Fatalf("server error: %v", err)
+		authToken := os.Getenv("MCP_AUTH_TOKEN")
+		if authToken == "" && !isLoopbackAddr(addr) {
+			log.Fatal("MCP_AUTH_TOKEN is required when LISTEN_ADDR is not loopback")
+		}
+		if authToken != "" {
+			mux := http.NewServeMux()
+			mux.Handle("/mcp", bearerAuth(httpSrv, authToken))
+			srv := &http.Server{Addr: addr, Handler: mux}
+			log.Printf("Telegram-Archive MCP bridge listening on %s (auth enabled)", addr)
+			go func() {
+				if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+					log.Fatalf("server error: %v", err)
+				}
+			}()
+			<-ctx.Done()
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := srv.Shutdown(shutdownCtx); err != nil {
+				log.Printf("HTTP shutdown error: %v", err)
 			}
-		}()
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := httpSrv.Shutdown(shutdownCtx); err != nil {
-			log.Printf("HTTP shutdown error: %v", err)
+		} else {
+			log.Printf("Telegram-Archive MCP bridge listening on %s", addr)
+			go func() {
+				if err := httpSrv.Start(addr); err != nil {
+					log.Fatalf("server error: %v", err)
+				}
+			}()
+			<-ctx.Done()
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			if err := httpSrv.Shutdown(shutdownCtx); err != nil {
+				log.Printf("HTTP shutdown error: %v", err)
+			}
 		}
 	}
 }
