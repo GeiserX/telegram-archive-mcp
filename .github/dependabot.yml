@@ -6,10 +6,13 @@ updates:
       interval: weekly
     groups:
       minor-and-patch:
-        update-types: [minor, patch]
+        update-types:
+          - minor
+          - patch
     ignore:
-      - dependency-name: "*"
-        update-types: [version-update:semver-major]
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
   - package-ecosystem: npm
     directory: /
     schedule:
@@ -24,7 +27,6 @@ updates:
       interval: monthly
     groups:
       minor-and-patch:
-        update-types: [minor, patch]
-    ignore:
-      - dependency-name: "*"
-        update-types: [version-update:semver-major]
+        update-types:
+          - minor
+          - patch
