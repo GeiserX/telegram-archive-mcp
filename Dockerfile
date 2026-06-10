@@ -5,7 +5,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -ldflags "-s -w" -o /out/telegram-archive-mcp ./cmd/server
 
-FROM alpine:3.23
+FROM alpine:3.24
 LABEL io.modelcontextprotocol.server.name="io.github.GeiserX/telegram-archive-mcp"
 COPY --from=builder /out/telegram-archive-mcp /usr/local/bin/telegram-archive-mcp
 EXPOSE 8080
