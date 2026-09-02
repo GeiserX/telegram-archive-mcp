@@ -21,3 +21,27 @@ jobs:
         with:
           files: coverage.out
           fail_ci_if_error: false
+
+  build-arm64:
+    # .goreleaser.yaml builds the published arm64 image from this Dockerfile, and
+    # only on a tag push. So a toolchain break in the builder surfaces during the
+    # release, after the tag is cut. That is exactly how the golang 1.27 bump
+    # broke duplicacy-cli-cron's arm64 link and cost it a burned version. Build
+    # linux/arm64 here so a bad bump goes red before merge instead.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Docker gets the whole checkout (COPY . .) and the builder layer is
+          # exported to the GHA cache, so leave the job token out of .git/config.
+          persist-credentials: false
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
+      - name: Build linux/arm64 (no push)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/arm64
+          push: false
+          cache-from: type=gha,scope=arm64-ci
+          cache-to: type=gha,mode=max,scope=arm64-ci
