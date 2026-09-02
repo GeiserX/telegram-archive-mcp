@@ -3,6 +3,7 @@ WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
+RUN echo "GOARCH=$(go env GOARCH)" && test "$(go env GOARCH)" = "amd64"
 RUN CGO_ENABLED=0 go build -ldflags "-s -w" -o /out/telegram-archive-mcp ./cmd/server
 
 FROM alpine:3.24
