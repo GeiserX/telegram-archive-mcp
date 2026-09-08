@@ -468,3 +468,63 @@ func TestParseArchiveTime_AcceptsViewerShapes(t *testing.T) {
 		t.Error("non-ISO date should fail")
 	}
 }
+
+func TestNewGetMessagesByDate_RejectsFractionalLimit(t *testing.T) {
+	ts, c := newTestClient(t, nil)
+	defer ts.Close()
+
+	_, handler := NewGetMessagesByDate(c)
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"chat_id": "c1",
+		"date":    "2025-01-15",
+		"limit":   float64(0.5),
+	}))
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if !result.IsError || !strings.Contains(resultText(t, result), "whole number") {
+		t.Errorf("expected a whole-number error, got %s", resultText(t, result))
+	}
+}
+
+func TestNewGetMessagesByDate_WalksPastTheOldPageCapWithBoundedMemory(t *testing.T) {
+	// 120 pages of 3 in-day messages (360 messages), then the previous day.
+	const pages = 120
+	ts, c := newTestClient(t, map[string]http.HandlerFunc{
+		"/api/chats/c1/messages": func(w http.ResponseWriter, r *http.Request) {
+			beforeID := int64(pages*3 + 1)
+			if s := r.URL.Query().Get("before_id"); s != "" {
+				fmt.Sscanf(s, "%d", &beforeID)
+			}
+			var rows []byDateRow
+			for id := beforeID - 1; id > beforeID-4 && id > 0; id-- {
+				rows = append(rows, byDateRow{ID: id, Date: fmt.Sprintf("2025-01-15T%02d:%02d:00", (int(id)/60)%24, int(id)%60)})
+			}
+			if beforeID-1 <= 3 {
+				rows = append(rows, byDateRow{ID: 0, Date: "2025-01-14T23:00:00"})
+			}
+			writeRows(w, rows)
+		},
+	})
+	defer ts.Close()
+
+	_, handler := NewGetMessagesByDate(c)
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"chat_id": "c1",
+		"date":    "2025-01-15",
+		"limit":   float64(5),
+	}))
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("result is error: %s", resultText(t, result))
+	}
+	out := decodeByDate(t, resultText(t, result))
+	if got := idsOf(t, out.Messages); fmt.Sprint(got) != "[1 2 3 4 5]" {
+		t.Errorf("ids = %v, want the five oldest of the day", got)
+	}
+	if !out.Truncated || out.Count != 5 {
+		t.Errorf("unexpected envelope: %+v", out)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 	_ "time/tzdata" // the release image has no zoneinfo; embed it so IANA names resolve
 
@@ -16,7 +17,6 @@ const (
 	byDatePageSize     = 500
 	byDateDefaultLimit = 1000
 	byDateMaxLimit     = 5000
-	byDateMaxPages     = 100
 )
 
 // archiveMessage is the slice of a message the day walker needs.
@@ -88,7 +88,9 @@ func NewGetMessagesByDate(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 		dayEnd := day.AddDate(0, 0, 1).UTC()
 
 		limit := byDateDefaultLimit
-		if v, ok := args["limit"].(float64); ok && v > 0 {
+		if v, present, err := wholeNumberArg(args, "limit", math.MaxInt32); err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		} else if present && v > 0 {
 			limit = int(v)
 		}
 		if limit > byDateMaxLimit {
@@ -116,16 +118,17 @@ func NewGetMessagesByDate(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 	return tool, handler
 }
 
-// collectDay walks the chat backwards from dayEnd and keeps the messages whose
+// collectDay walks the chat backwards from dayEnd until the day boundary, an
+// empty page or a cursor that does not advance, and keeps the messages whose
 // date falls in [dayStart, dayEnd). It returns them oldest first. When more
 // than limit messages fall in the window, the oldest limit are kept and
-// truncated is true.
+// truncated is true; memory stays bounded by 2*limit while walking.
 func collectDay(ctx context.Context, c *client.Client, chatID string, dayStart, dayEnd time.Time, limit int) ([]json.RawMessage, bool, error) {
 	var collected []json.RawMessage
 	cur := client.MessagesCursor{BeforeDate: formatArchiveTime(dayEnd)}
 	truncated := false
 
-	for page := 0; page < byDateMaxPages; page++ {
+	for {
 		body, err := c.GetMessagesCursor(ctx, chatID, byDatePageSize, cur)
 		if err != nil {
 			return nil, false, err
@@ -162,6 +165,11 @@ func collectDay(ctx context.Context, c *client.Client, chatID string, dayStart, 
 				continue
 			}
 			collected = append(collected, raw)
+			if len(collected) >= 2*limit {
+				// walking newest first, the oldest are at the tail: drop the head
+				collected = append([]json.RawMessage(nil), collected[len(collected)-limit:]...)
+				truncated = true
+			}
 		}
 		if stop {
 			break
@@ -173,13 +181,13 @@ func collectDay(ctx context.Context, c *client.Client, chatID string, dayStart, 
 		cur = client.MessagesCursor{BeforeDate: last.Date, BeforeID: last.ID}
 	}
 
+	if len(collected) > limit {
+		collected = collected[len(collected)-limit:]
+		truncated = true
+	}
 	// newest first -> oldest first
 	for i, j := 0, len(collected)-1; i < j; i, j = i+1, j-1 {
 		collected[i], collected[j] = collected[j], collected[i]
-	}
-	if len(collected) > limit {
-		collected = collected[:limit]
-		truncated = true
 	}
 	if collected == nil {
 		collected = []json.RawMessage{}

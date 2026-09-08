@@ -935,3 +935,71 @@ func TestNewGetMessages_CursorReturnsToolErrorOnAPIFailure(t *testing.T) {
 		t.Error("expected a tool error")
 	}
 }
+
+func TestNewGetMessages_RejectsFractionalCursorID(t *testing.T) {
+	ts, c := newTestClient(t, nil)
+	defer ts.Close()
+
+	_, handler := NewGetMessages(c)
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"chat_id":   "c1",
+		"before_id": float64(42.5),
+	}))
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if !result.IsError || !strings.Contains(resultText(t, result), "whole number") {
+		t.Errorf("expected a whole-number error, got %s", resultText(t, result))
+	}
+}
+
+func TestNewGetMessages_RejectsOutOfRangeAfterID(t *testing.T) {
+	ts, c := newTestClient(t, nil)
+	defer ts.Close()
+
+	_, handler := NewGetMessages(c)
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"chat_id":  "c1",
+		"after_id": float64(1e30),
+	}))
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if !result.IsError || !strings.Contains(resultText(t, result), "between 0 and") {
+		t.Errorf("expected a range error, got %s", resultText(t, result))
+	}
+}
+
+func TestNewGetMessages_RejectsNonNumericLimit(t *testing.T) {
+	ts, c := newTestClient(t, nil)
+	defer ts.Close()
+
+	_, handler := NewGetMessages(c)
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"chat_id": "c1",
+		"limit":   "ten",
+	}))
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if !result.IsError || !strings.Contains(resultText(t, result), "must be a number") {
+		t.Errorf("expected a number error, got %s", resultText(t, result))
+	}
+}
+
+func TestNewGetMessages_RejectsFractionalOffset(t *testing.T) {
+	ts, c := newTestClient(t, nil)
+	defer ts.Close()
+
+	_, handler := NewGetMessages(c)
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"chat_id": "c1",
+		"offset":  float64(1.5),
+	}))
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if !result.IsError || !strings.Contains(resultText(t, result), "whole number") {
+		t.Errorf("expected a whole-number error, got %s", resultText(t, result))
+	}
+}

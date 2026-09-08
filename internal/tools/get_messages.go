@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"math"
 
 	"github.com/geiserx/telegram-archive-mcp/client"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -43,9 +44,11 @@ func NewGetMessages(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 		}
 		args := req.GetArguments()
 
-		limit := 50
-		if v, ok := args["limit"].(float64); ok && v > 0 {
-			limit = int(v)
+		limit := int64(50)
+		if v, present, err := wholeNumberArg(args, "limit", math.MaxInt32); err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		} else if present && v > 0 {
+			limit = v
 		}
 		if limit > 500 {
 			limit = 500
@@ -59,30 +62,31 @@ func NewGetMessages(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 			}
 			cur.BeforeDate = formatArchiveTime(t)
 		}
-		if v, ok := args["before_id"].(float64); ok && v > 0 {
-			cur.BeforeID = int64(v)
+		if v, _, err := wholeNumberArg(args, "before_id", math.MaxInt64); err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		} else {
+			cur.BeforeID = v
 		}
-		if v, ok := args["after_id"].(float64); ok && v > 0 {
-			cur.AfterID = int64(v)
+		if v, _, err := wholeNumberArg(args, "after_id", math.MaxInt64); err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		} else {
+			cur.AfterID = v
 		}
 
 		if cur != (client.MessagesCursor{}) {
-			body, err := c.GetMessagesCursor(ctx, chatID, limit, cur)
+			body, err := c.GetMessagesCursor(ctx, chatID, int(limit), cur)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 			return mcp.NewToolResultText(string(body)), nil
 		}
 
-		offset := 0
-		if v, ok := args["offset"].(float64); ok && v > 0 {
-			offset = int(v)
-		}
-		if offset > 100000 {
-			offset = 100000
+		offset, _, err := wholeNumberArg(args, "offset", 100000)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		body, err := c.GetMessages(ctx, chatID, limit, offset)
+		body, err := c.GetMessages(ctx, chatID, int(limit), int(offset))
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
