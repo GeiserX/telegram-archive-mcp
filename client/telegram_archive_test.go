@@ -649,3 +649,54 @@ func TestLogin_ReturnsErrorOnInvalidBaseURL(t *testing.T) {
 		t.Fatal("expected error on invalid base URL")
 	}
 }
+
+func TestGetMessagesCursor_SendsCursorParams(t *testing.T) {
+	mux := loginMux()
+	mux.HandleFunc("/api/chats/c1/messages", func(w http.ResponseWriter, r *http.Request) {
+		q := r.URL.Query()
+		if q.Get("limit") != "500" {
+			t.Errorf("limit = %q", q.Get("limit"))
+		}
+		if q.Get("before_date") != "2026-06-10T18:04:17" {
+			t.Errorf("before_date = %q", q.Get("before_date"))
+		}
+		if q.Get("before_id") != "1142046" {
+			t.Errorf("before_id = %q", q.Get("before_id"))
+		}
+		if q.Get("after_id") != "5" {
+			t.Errorf("after_id = %q", q.Get("after_id"))
+		}
+		if q.Get("offset") != "" {
+			t.Errorf("offset must not be sent, got %q", q.Get("offset"))
+		}
+		w.Write([]byte(`[]`))
+	})
+	ts, c := newTestServer(t, mux)
+	defer ts.Close()
+
+	_, err := c.GetMessagesCursor(context.Background(), "c1", 500, MessagesCursor{
+		BeforeDate: "2026-06-10T18:04:17",
+		BeforeID:   1142046,
+		AfterID:    5,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestGetMessagesCursor_OmitsZeroValues(t *testing.T) {
+	mux := loginMux()
+	mux.HandleFunc("/api/chats/c1/messages", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.RawQuery != "" {
+			t.Errorf("expected no query params, got %q", r.URL.RawQuery)
+		}
+		w.Write([]byte(`[]`))
+	})
+	ts, c := newTestServer(t, mux)
+	defer ts.Close()
+
+	_, err := c.GetMessagesCursor(context.Background(), "c1", 0, MessagesCursor{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
