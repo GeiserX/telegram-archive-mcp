@@ -24,5 +24,11 @@ func wholeNumberArg(args map[string]any, key string, max int64) (int64, bool, er
 	if v < 0 || v > float64(max) {
 		return 0, true, fmt.Errorf("%s must be between 0 and %d", key, max)
 	}
+	// Past 2^53 a float64 no longer holds every integer, so the value the caller
+	// meant is not recoverable; with max = MaxInt64 the range check above cannot
+	// catch it either, because float64(MaxInt64) rounds up.
+	if v >= 1<<53 {
+		return 0, true, fmt.Errorf("%s is too large to be represented exactly", key)
+	}
 	return int64(v), true, nil
 }

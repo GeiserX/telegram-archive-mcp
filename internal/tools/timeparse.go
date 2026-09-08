@@ -33,7 +33,11 @@ func parseArchiveTime(s string) (time.Time, error) {
 }
 
 // formatArchiveTime renders a UTC instant the way the viewer expects cursors:
-// naive ISO 8601 seconds, which the API reads as UTC.
+// naive ISO 8601, which the API reads as UTC. Fractional seconds are kept when
+// the instant has them and omitted when it does not, so a cursor is never
+// rounded down onto messages the caller has already seen. This archive stores
+// whole seconds, but the viewer parses ISO 8601 with fromisoformat, so a caller
+// that does carry microseconds keeps them.
 func formatArchiveTime(t time.Time) string {
-	return t.UTC().Format("2006-01-02T15:04:05")
+	return t.UTC().Format("2006-01-02T15:04:05.999999")
 }

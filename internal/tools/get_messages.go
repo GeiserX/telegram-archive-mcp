@@ -55,12 +55,18 @@ func NewGetMessages(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 		}
 
 		var cur client.MessagesCursor
-		if v, ok := args["before_date"].(string); ok && v != "" {
-			t, err := parseArchiveTime(v)
-			if err != nil {
-				return mcp.NewToolResultError("invalid before_date: " + err.Error()), nil
+		if raw, present := args["before_date"]; present && raw != nil {
+			v, ok := raw.(string)
+			if !ok {
+				return mcp.NewToolResultError("before_date must be a string"), nil
 			}
-			cur.BeforeDate = formatArchiveTime(t)
+			if v != "" {
+				t, err := parseArchiveTime(v)
+				if err != nil {
+					return mcp.NewToolResultError("invalid before_date: " + err.Error()), nil
+				}
+				cur.BeforeDate = formatArchiveTime(t)
+			}
 		}
 		if v, _, err := wholeNumberArg(args, "before_id", math.MaxInt64); err != nil {
 			return mcp.NewToolResultError(err.Error()), nil

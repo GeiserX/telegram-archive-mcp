@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"testing"
@@ -526,5 +527,68 @@ func TestNewGetMessagesByDate_WalksPastTheOldPageCapWithBoundedMemory(t *testing
 	}
 	if !out.Truncated || out.Count != 5 {
 		t.Errorf("unexpected envelope: %+v", out)
+	}
+}
+
+// A cursor is the caller's own "last message I saw". Rounding it down to the
+// second would step back onto messages already returned, so what the caller
+// hands in survives the round trip. This archive stores whole seconds, and
+// those must not grow a fractional part either.
+func TestFormatArchiveTime_KeepsTheCallersPrecision(t *testing.T) {
+	for _, tc := range []struct{ in, want string }{
+		{"2026-06-10T18:04:17.123456", "2026-06-10T18:04:17.123456"},
+		{"2026-06-10T18:04:17.5", "2026-06-10T18:04:17.5"},
+		{"2026-06-10T18:04:17", "2026-06-10T18:04:17"},
+		{"2026-06-10T20:04:17+02:00", "2026-06-10T18:04:17"},
+	} {
+		parsed, err := parseArchiveTime(tc.in)
+		if err != nil {
+			t.Fatalf("parse %q: %v", tc.in, err)
+		}
+		if got := formatArchiveTime(parsed); got != tc.want {
+			t.Errorf("formatArchiveTime(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+}
+
+// A float64 holds every integer only below 2^53, and float64(MaxInt64) rounds
+// UP, so the range check alone lets a value through that int64() would wrap.
+func TestWholeNumberArg_RejectsWhatFloat64CannotHoldExactly(t *testing.T) {
+	for _, raw := range []float64{9007199254740992, 9007199254740993, 9223372036854775808} {
+		if _, present, err := wholeNumberArg(map[string]any{"before_id": raw}, "before_id", math.MaxInt64); err == nil {
+			t.Errorf("%v was accepted; a float64 cannot represent it exactly", raw)
+		} else if !present {
+			t.Errorf("%v should be reported as present", raw)
+		}
+	}
+	// Everything below the boundary still works.
+	got, present, err := wholeNumberArg(map[string]any{"before_id": float64(9007199254740991)}, "before_id", math.MaxInt64)
+	if err != nil || !present || got != 9007199254740991 {
+		t.Errorf("got (%d, %v, %v), want the value accepted", got, present, err)
+	}
+}
+
+// A number where a timezone belongs is a mistake. Answering in UTC anyway hides
+// it and the caller reads a day that is not the day they asked for.
+func TestNewGetMessagesByDate_RejectsNonStringTimezone(t *testing.T) {
+	ts, c := newTestClient(t, map[string]http.HandlerFunc{
+		"/api/chats/c1/messages": func(w http.ResponseWriter, r *http.Request) {
+			t.Error("the archive must not be called with an invalid timezone")
+		},
+	})
+	defer ts.Close()
+
+	_, handler := NewGetMessagesByDate(c)
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"chat_id": "c1", "date": "2025-01-15", "timezone": float64(2),
+	}))
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if !result.IsError {
+		t.Fatalf("expected a tool error, got %s", resultText(t, result))
+	}
+	if text := resultText(t, result); !strings.Contains(text, "timezone must be a string") {
+		t.Errorf("unexpected message: %s", text)
 	}
 }

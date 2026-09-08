@@ -69,7 +69,14 @@ func NewGetMessagesByDate(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 		args := req.GetArguments()
 
 		loc := time.UTC
-		tz, _ := args["timezone"].(string)
+		tz := ""
+		if raw, present := args["timezone"]; present && raw != nil {
+			v, ok := raw.(string)
+			if !ok {
+				return mcp.NewToolResultError("timezone must be a string"), nil
+			}
+			tz = v
+		}
 		if tz != "" {
 			l, err := time.LoadLocation(tz)
 			if err != nil {

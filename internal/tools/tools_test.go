@@ -1003,3 +1003,29 @@ func TestNewGetMessages_RejectsFractionalOffset(t *testing.T) {
 		t.Errorf("expected a whole-number error, got %s", resultText(t, result))
 	}
 }
+
+// A number where before_date belongs is a mistake. Falling back to offset paging
+// silently returns the newest page instead, which reads as "there is nothing
+// older" to the caller.
+func TestNewGetMessages_RejectsNonStringBeforeDate(t *testing.T) {
+	ts, c := newTestClient(t, map[string]http.HandlerFunc{
+		"/api/chats/c1/messages": func(w http.ResponseWriter, r *http.Request) {
+			t.Error("the archive must not be called with an invalid before_date")
+		},
+	})
+	defer ts.Close()
+
+	_, handler := NewGetMessages(c)
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"chat_id": "c1", "before_date": float64(20260610),
+	}))
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if !result.IsError {
+		t.Fatalf("expected a tool error, got %s", resultText(t, result))
+	}
+	if text := resultText(t, result); !strings.Contains(text, "before_date must be a string") {
+		t.Errorf("unexpected message: %s", text)
+	}
+}
