@@ -195,6 +195,37 @@ func (c *Client) GetMessages(ctx context.Context, chatID string, limit, offset i
 	return c.doAuth(ctx, "GET", c.buildURL(path, q), nil, true)
 }
 
+// MessagesCursor is the keyset cursor accepted by GET /api/chats/{ref}/messages.
+// The viewer returns messages newest first. BeforeDate and BeforeID together
+// page backwards in constant time (pass the date and id of the last message
+// received); AfterID returns messages with a greater id. Zero values are
+// omitted from the query.
+type MessagesCursor struct {
+	BeforeDate string
+	BeforeID   int64
+	AfterID    int64
+}
+
+// GetMessagesCursor retrieves messages from a chat using the keyset cursor
+// instead of an offset.
+func (c *Client) GetMessagesCursor(ctx context.Context, chatID string, limit int, cur MessagesCursor) ([]byte, error) {
+	q := url.Values{}
+	if limit > 0 {
+		q.Set("limit", fmt.Sprintf("%d", limit))
+	}
+	if cur.BeforeDate != "" {
+		q.Set("before_date", cur.BeforeDate)
+	}
+	if cur.BeforeID > 0 {
+		q.Set("before_id", fmt.Sprintf("%d", cur.BeforeID))
+	}
+	if cur.AfterID > 0 {
+		q.Set("after_id", fmt.Sprintf("%d", cur.AfterID))
+	}
+	path := fmt.Sprintf("/api/chats/%s/messages", url.PathEscape(chatID))
+	return c.doAuth(ctx, "GET", c.buildURL(path, q), nil, true)
+}
+
 // GetPinnedMessages returns pinned messages for a chat.
 func (c *Client) GetPinnedMessages(ctx context.Context, chatID string) ([]byte, error) {
 	path := fmt.Sprintf("/api/chats/%s/pinned", url.PathEscape(chatID))

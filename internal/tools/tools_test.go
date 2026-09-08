@@ -536,34 +536,6 @@ func TestNewGetPinnedMessages_ReturnsToolErrorOnAPIFailure(t *testing.T) {
 
 // --- GetMessagesByDate ---
 
-func TestNewGetMessagesByDate_ReturnsResultOnSuccess(t *testing.T) {
-	ts, c := newTestClient(t, map[string]http.HandlerFunc{
-		"/api/chats/c1/messages/by-date": func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte(`[{"date":"2025-01-15"}]`))
-		},
-	})
-	defer ts.Close()
-
-	_, handler := NewGetMessagesByDate(c)
-	req := makeToolRequest(map[string]any{
-		"chat_id":  "c1",
-		"date":     "2025-01-15",
-		"timezone": "Europe/Madrid",
-	})
-
-	result, err := handler(context.Background(), req)
-	if err != nil {
-		t.Fatalf("handler error: %v", err)
-	}
-	if result.IsError {
-		t.Fatalf("result is error: %s", resultText(t, result))
-	}
-	text := resultText(t, result)
-	if !strings.Contains(text, "2025-01-15") {
-		t.Errorf("unexpected text: %s", text)
-	}
-}
-
 func TestNewGetMessagesByDate_ReturnErrorWhenChatIDMissing(t *testing.T) {
 	ts, c := newTestClient(t, nil)
 	defer ts.Close()
@@ -616,55 +588,6 @@ func TestNewGetMessagesByDate_ReturnErrorOnInvalidDateFormat(t *testing.T) {
 	text := resultText(t, result)
 	if !strings.Contains(text, "YYYY-MM-DD") {
 		t.Errorf("error should mention expected format, got: %s", text)
-	}
-}
-
-func TestNewGetMessagesByDate_WorksWithoutTimezone(t *testing.T) {
-	ts, c := newTestClient(t, map[string]http.HandlerFunc{
-		"/api/chats/c1/messages/by-date": func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Query().Get("timezone") != "" {
-				t.Error("timezone should be absent")
-			}
-			w.Write([]byte(`[]`))
-		},
-	})
-	defer ts.Close()
-
-	_, handler := NewGetMessagesByDate(c)
-	req := makeToolRequest(map[string]any{
-		"chat_id": "c1",
-		"date":    "2025-01-15",
-	})
-
-	result, err := handler(context.Background(), req)
-	if err != nil {
-		t.Fatalf("handler error: %v", err)
-	}
-	if result.IsError {
-		t.Errorf("unexpected error: %s", resultText(t, result))
-	}
-}
-
-func TestNewGetMessagesByDate_ReturnsToolErrorOnAPIFailure(t *testing.T) {
-	ts, c := newTestClient(t, map[string]http.HandlerFunc{
-		"/api/chats/c1/messages/by-date": func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusInternalServerError)
-		},
-	})
-	defer ts.Close()
-
-	_, handler := NewGetMessagesByDate(c)
-	req := makeToolRequest(map[string]any{
-		"chat_id": "c1",
-		"date":    "2025-01-15",
-	})
-
-	result, err := handler(context.Background(), req)
-	if err != nil {
-		t.Fatalf("handler error: %v", err)
-	}
-	if !result.IsError {
-		t.Error("expected IsError on API failure")
 	}
 }
 
@@ -902,5 +825,113 @@ func TestNewRefreshStats_ToolHasCorrectName(t *testing.T) {
 	tool, _ := NewRefreshStats(c)
 	if tool.Name != "refresh_stats" {
 		t.Errorf("tool name = %q, want %q", tool.Name, "refresh_stats")
+	}
+}
+
+func TestNewGetMessages_UsesKeysetCursorAndIgnoresOffset(t *testing.T) {
+	ts, c := newTestClient(t, map[string]http.HandlerFunc{
+		"/api/chats/c1/messages": func(w http.ResponseWriter, r *http.Request) {
+			q := r.URL.Query()
+			if q.Get("before_date") != "2026-06-10T18:04:17" {
+				t.Errorf("before_date = %q", q.Get("before_date"))
+			}
+			if q.Get("before_id") != "1142046" {
+				t.Errorf("before_id = %q", q.Get("before_id"))
+			}
+			if q.Get("offset") != "" {
+				t.Errorf("offset should be ignored with a cursor, got %q", q.Get("offset"))
+			}
+			if q.Get("limit") != "500" {
+				t.Errorf("limit = %q", q.Get("limit"))
+			}
+			w.Write([]byte(`[{"id":1142045}]`))
+		},
+	})
+	defer ts.Close()
+
+	_, handler := NewGetMessages(c)
+	req := makeToolRequest(map[string]any{
+		"chat_id":     "c1",
+		"limit":       float64(9000),
+		"offset":      float64(10),
+		"before_date": "2026-06-10T20:04:17+02:00",
+		"before_id":   float64(1142046),
+	})
+
+	result, err := handler(context.Background(), req)
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("result is error: %s", resultText(t, result))
+	}
+	if !strings.Contains(resultText(t, result), "1142045") {
+		t.Errorf("unexpected text: %s", resultText(t, result))
+	}
+}
+
+func TestNewGetMessages_AfterIDCursor(t *testing.T) {
+	ts, c := newTestClient(t, map[string]http.HandlerFunc{
+		"/api/chats/c1/messages": func(w http.ResponseWriter, r *http.Request) {
+			q := r.URL.Query()
+			if q.Get("after_id") != "42" {
+				t.Errorf("after_id = %q", q.Get("after_id"))
+			}
+			if q.Get("before_date") != "" || q.Get("before_id") != "" || q.Get("offset") != "" {
+				t.Errorf("unexpected params: %s", r.URL.RawQuery)
+			}
+			w.Write([]byte(`[]`))
+		},
+	})
+	defer ts.Close()
+
+	_, handler := NewGetMessages(c)
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"chat_id":  "c1",
+		"after_id": float64(42),
+	}))
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("result is error: %s", resultText(t, result))
+	}
+}
+
+func TestNewGetMessages_RejectsMalformedBeforeDate(t *testing.T) {
+	ts, c := newTestClient(t, nil)
+	defer ts.Close()
+
+	_, handler := NewGetMessages(c)
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"chat_id":     "c1",
+		"before_date": "10/06/2026",
+	}))
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if !result.IsError || !strings.Contains(resultText(t, result), "invalid before_date") {
+		t.Errorf("expected an invalid before_date error, got %s", resultText(t, result))
+	}
+}
+
+func TestNewGetMessages_CursorReturnsToolErrorOnAPIFailure(t *testing.T) {
+	ts, c := newTestClient(t, map[string]http.HandlerFunc{
+		"/api/chats/c1/messages": func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		},
+	})
+	defer ts.Close()
+
+	_, handler := NewGetMessages(c)
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{
+		"chat_id":   "c1",
+		"before_id": float64(7),
+	}))
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if !result.IsError {
+		t.Error("expected a tool error")
 	}
 }
