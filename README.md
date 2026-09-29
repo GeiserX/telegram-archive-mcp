@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/images/banner.svg" alt="Telegram Archive MCP banner" width="900"/>
+  <img src="https://raw.githubusercontent.com/GeiserX/telegram-archive-mcp/main/docs/images/banner.svg" alt="Telegram Archive MCP banner" width="900"/>
 </p>
 
 <h1 align="center">Telegram-Archive-MCP</h1>
