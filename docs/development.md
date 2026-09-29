@@ -16,7 +16,7 @@ Telegram-Archive-MCP follows the [Contributor Covenant](http://contributor-coven
 
 ## Credits
 
-[Telegram-Archive](https://github.com/nicmart-dev/telegram-archive) -- Telegram message archival and search
+[Telegram-Archive](https://github.com/GeiserX/Telegram-Archive) -- Telegram message archival and search
 
 [MCP-GO](https://github.com/mark3labs/mcp-go) -- modern MCP implementation
 
