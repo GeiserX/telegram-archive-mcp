@@ -1,4 +1,4 @@
-# Related projects and listings
+# Related projects
 
 ## Listings
 

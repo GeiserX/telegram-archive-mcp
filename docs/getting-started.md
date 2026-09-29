@@ -1,15 +1,15 @@
-# Installation
+# Getting started
 
 ## Docker Compose
 
 ```yaml
 services:
   telegram-archive-mcp:
-    image: drumsergio/telegram-archive-mcp:latest
+    image: drumsergio/telegram-archive-mcp:v0.1.1
     ports:
       - "127.0.0.1:8080:8080"
     environment:
-      - TELEGRAM_ARCHIVE_URL=http://telegram-archive:3000
+      - TELEGRAM_ARCHIVE_URL=http://telegram-viewer:8000   # the Telegram-Archive viewer, on the same Docker network
       - TELEGRAM_ARCHIVE_USER=your-username
       - TELEGRAM_ARCHIVE_PASS=your-password
 ```

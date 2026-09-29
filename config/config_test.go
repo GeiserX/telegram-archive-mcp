@@ -9,8 +9,8 @@ func TestLoad_Defaults(t *testing.T) {
 	t.Setenv("TELEGRAM_ARCHIVE_USER", "")
 	t.Setenv("TELEGRAM_ARCHIVE_PASS", "")
 	cfg := Load()
-	if cfg.BaseURL != "http://localhost:3000" {
-		t.Errorf("BaseURL default: got %q, want %q", cfg.BaseURL, "http://localhost:3000")
+	if cfg.BaseURL != "http://localhost:8000" {
+		t.Errorf("BaseURL default: got %q, want %q", cfg.BaseURL, "http://localhost:8000")
 	}
 	if cfg.User != "" {
 		t.Errorf("User default: got %q, want empty", cfg.User)

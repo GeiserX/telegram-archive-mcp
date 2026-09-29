@@ -1,15 +1,15 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/GeiserX/telegram-archive-mcp/main/docs/images/banner.svg" alt="Telegram Archive MCP banner" width="900"/>
+  <img src="https://raw.githubusercontent.com/GeiserX/telegram-archive-mcp/main/docs/images/banner.svg" alt="telegram-archive-mcp" width="900"/>
 </p>
 
-<h1 align="center">Telegram-Archive-MCP</h1>
+<h1 align="center">telegram-archive-mcp</h1>
 
 <p align="center">
   <a href="https://www.npmjs.com/package/telegram-archive-mcp"><img src="https://img.shields.io/npm/v/telegram-archive-mcp?style=flat-square&logo=npm" alt="npm"/></a>
   <a href="https://github.com/GeiserX/telegram-archive-mcp/actions/workflows/ci.yml"><img src="https://github.com/GeiserX/telegram-archive-mcp/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
-  <a href="https://codecov.io/gh/GeiserX/telegram-archive-mcp"><img src="https://codecov.io/gh/GeiserX/telegram-archive-mcp/graph/badge.svg" alt="codecov"/></a>
-  <a href="https://hub.docker.com/r/drumsergio/telegram-archive-mcp"><img src="https://img.shields.io/docker/pulls/drumsergio/telegram-archive-mcp?style=flat-square&logo=docker" alt="Docker Pulls"/></a>
   <a href="https://github.com/GeiserX/telegram-archive-mcp/blob/main/LICENSE"><img src="https://img.shields.io/github/license/GeiserX/telegram-archive-mcp?style=flat-square" alt="License"/></a>
+  <a href="https://hub.docker.com/r/drumsergio/telegram-archive-mcp"><img src="https://img.shields.io/docker/pulls/drumsergio/telegram-archive-mcp?style=flat-square&logo=docker" alt="Docker Pulls"/></a>
+  <a href="https://codecov.io/gh/GeiserX/telegram-archive-mcp"><img src="https://codecov.io/gh/GeiserX/telegram-archive-mcp/graph/badge.svg" alt="codecov"/></a>
 </p>
 
 <p align="center"><strong>An MCP server for any <a href="https://github.com/GeiserX/Telegram-Archive">Telegram-Archive</a> instance. LLMs use it to search messages, browse chats and read archived Telegram history.</strong></p>
@@ -30,16 +30,34 @@
 npx telegram-archive-mcp
 ```
 
-Set `TELEGRAM_ARCHIVE_URL`, `TELEGRAM_ARCHIVE_USER` and `TELEGRAM_ARCHIVE_PASS` first. Docker Compose and local builds are in [Installation](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/installation.md).
+`npx` fetches the server and runs it on stdio, so your MCP client starts it for you. For Claude Desktop, Cursor or Claude Code, add:
+
+```json
+{
+  "mcpServers": {
+    "telegram-archive": {
+      "command": "npx",
+      "args": ["-y", "telegram-archive-mcp"],
+      "env": {
+        "TELEGRAM_ARCHIVE_URL": "http://localhost:8000",
+        "TELEGRAM_ARCHIVE_USER": "admin",
+        "TELEGRAM_ARCHIVE_PASS": "your-viewer-password"
+      }
+    }
+  }
+}
+```
+
+Set the URL, user and password of your Telegram-Archive viewer. Docker Compose (HTTP on `127.0.0.1:8080`) and local builds are in [Getting started](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/getting-started.md).
 
 ## Documentation
 
-- [Installation](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/installation.md): Docker Compose, npm, local build
-- [Configuration](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/configuration.md): environment variables and an example client config
-- [Resources and tools](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/usage.md)
+- [Getting started](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/getting-started.md): Docker Compose, npm, local build
+- [Configuration](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/configuration.md): environment variables and client configuration
+- [Usage](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/usage.md): resources and tools
 - [Development](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/development.md): testing, contributing, credits
-- [Related projects and listings](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/related.md)
+- [Related projects](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/related.md)
 
 ## License
 
-[GPL-3.0](https://github.com/GeiserX/telegram-archive-mcp/blob/main/LICENSE)
+[GPL-3.0-or-later](https://github.com/GeiserX/telegram-archive-mcp/blob/main/LICENSE)
