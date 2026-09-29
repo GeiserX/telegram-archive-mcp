@@ -5,154 +5,41 @@
 <h1 align="center">Telegram-Archive-MCP</h1>
 
 <p align="center">
-  <a href="https://codecov.io/gh/GeiserX/telegram-archive-mcp"><img src="https://codecov.io/gh/GeiserX/telegram-archive-mcp/graph/badge.svg" alt="codecov"/></a>
   <a href="https://www.npmjs.com/package/telegram-archive-mcp"><img src="https://img.shields.io/npm/v/telegram-archive-mcp?style=flat-square&logo=npm" alt="npm"/></a>
-  <img src="https://img.shields.io/badge/Go-1.24-blue?style=flat-square&logo=go&logoColor=white" alt="Go"/>
+  <a href="https://github.com/GeiserX/telegram-archive-mcp/actions/workflows/ci.yml"><img src="https://github.com/GeiserX/telegram-archive-mcp/actions/workflows/ci.yml/badge.svg" alt="CI"/></a>
+  <a href="https://codecov.io/gh/GeiserX/telegram-archive-mcp"><img src="https://codecov.io/gh/GeiserX/telegram-archive-mcp/graph/badge.svg" alt="codecov"/></a>
   <a href="https://hub.docker.com/r/drumsergio/telegram-archive-mcp"><img src="https://img.shields.io/docker/pulls/drumsergio/telegram-archive-mcp?style=flat-square&logo=docker" alt="Docker Pulls"/></a>
-  <a href="https://github.com/GeiserX/telegram-archive-mcp/stargazers"><img src="https://img.shields.io/github/stars/GeiserX/telegram-archive-mcp?style=flat-square&logo=github" alt="GitHub Stars"/></a>
   <a href="https://github.com/GeiserX/telegram-archive-mcp/blob/main/LICENSE"><img src="https://img.shields.io/github/license/GeiserX/telegram-archive-mcp?style=flat-square" alt="License"/></a>
 </p>
-<p align="center">
-  <a href="https://registry.modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-Official%20Registry-E6522C?style=flat-square" alt="Official MCP Registry"/></a>
-  <a href="https://glama.ai/mcp/servers/GeiserX/telegram-archive-mcp"><img src="https://glama.ai/mcp/servers/GeiserX/telegram-archive-mcp/badges/score.svg" alt="Glama MCP Server" /></a>
-  <a href="https://mcpservers.org/servers/geiserx/telegram-archive-mcp"><img src="https://img.shields.io/badge/MCPServers.org-listed-green?style=flat-square" alt="MCPServers.org"/></a>
-  <a href="https://mcp.so/server/telegram-archive-mcp"><img src="https://img.shields.io/badge/mcp.so-listed-blue?style=flat-square" alt="mcp.so"/></a>
-  <a href="https://github.com/toolsdk-ai/toolsdk-mcp-registry"><img src="https://img.shields.io/badge/ToolSDK-Registry-orange?style=flat-square" alt="ToolSDK Registry"/></a>
-  <a href="https://github.com/punkpeye/awesome-mcp-servers#readme"><img src="https://img.shields.io/badge/listed%20on-awesome--mcp--servers-E6522C?style=flat-square" alt="listed on awesome-mcp-servers"/></a>
-</p>
 
-<p align="center"><strong>A tiny bridge that exposes any Telegram-Archive instance as an MCP server, enabling LLMs to search messages, browse chats, and access archived Telegram history.</strong></p>
+<p align="center"><strong>An MCP server for any <a href="https://github.com/GeiserX/Telegram-Archive">Telegram-Archive</a> instance. LLMs use it to search messages, browse chats and read archived Telegram history.</strong></p>
 
----
+## Features
 
-## What you get
+- Read-only resources for archive stats, chats, folders and health (`telegram-archive://stats`, `telegram-archive://chats`).
+- Message search, message paging by offset or keyset cursor, and whole calendar days in a timezone (`get_messages_by_date`).
+- Pinned messages, forum topics and per-chat statistics.
+- Signs in to Telegram-Archive through `/api/login` with `TELEGRAM_ARCHIVE_USER` and `TELEGRAM_ARCHIVE_PASS`.
+- One JSON-RPC endpoint (`/mcp`) over HTTP, or stdio with `TRANSPORT=stdio`.
+- Listens on loopback by default; `MCP_AUTH_TOKEN` adds bearer auth when you expose it.
+- Ships as a Docker image, an npm package (`npx telegram-archive-mcp`) and multi-arch Go binaries.
 
-| Type          | What for                                                       | MCP URI / Tool id                |
-|---------------|----------------------------------------------------------------|----------------------------------|
-| **Resources** | Browse archive stats, chats, and folders read-only             | `telegram-archive://stats`<br>`telegram-archive://chats`<br>`telegram-archive://folders`<br>`telegram-archive://health` |
-| **Tools**     | Search and retrieve messages (offset or keyset cursor paging; whole calendar days in a timezone), inspect chat statistics | `search_messages`<br>`get_messages`<br>`get_pinned_messages`<br>`get_messages_by_date`<br>`get_chat_stats`<br>`get_topics`<br>`refresh_stats` |
-
-Everything is exposed over a single JSON-RPC endpoint (`/mcp`).
-LLMs / Agents can: `initialize` -> `readResource` -> `listTools` -> `callTool` ... and so on.
-
----
-
-## Quick-start (Docker Compose)
-
-```yaml
-services:
-  telegram-archive-mcp:
-    image: drumsergio/telegram-archive-mcp:latest
-    ports:
-      - "127.0.0.1:8080:8080"
-    environment:
-      - TELEGRAM_ARCHIVE_URL=http://telegram-archive:3000
-      - TELEGRAM_ARCHIVE_USER=your-username
-      - TELEGRAM_ARCHIVE_PASS=your-password
-```
-
-> **Security note:** The HTTP transport listens on `127.0.0.1:8080` by default. If you need to expose it on a network, place it behind a reverse proxy with authentication.
-
-## Install via npm (stdio transport)
+## Quick start
 
 ```sh
 npx telegram-archive-mcp
 ```
 
-Or install globally:
+Set `TELEGRAM_ARCHIVE_URL`, `TELEGRAM_ARCHIVE_USER` and `TELEGRAM_ARCHIVE_PASS` first. Docker Compose and local builds are in [Installation](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/installation.md).
 
-```sh
-npm install -g telegram-archive-mcp
-telegram-archive-mcp
-```
+## Documentation
 
-This downloads the pre-built Go binary from GitHub Releases for your platform and runs it with stdio transport. Requires at least one [published release](https://github.com/GeiserX/telegram-archive-mcp/releases).
+- [Installation](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/installation.md): Docker Compose, npm, local build
+- [Configuration](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/configuration.md): environment variables and an example client config
+- [Resources and tools](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/usage.md)
+- [Development](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/development.md): testing, contributing, credits
+- [Related projects and listings](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/related.md)
 
-## Local build
+## License
 
-```sh
-git clone https://github.com/GeiserX/telegram-archive-mcp
-cd telegram-archive-mcp
-
-# (optional) create .env from the sample
-cp .env.example .env && $EDITOR .env
-
-go run ./cmd/server
-```
-
-## Configuration
-
-| Variable                | Default                    | Description                                      |
-|-------------------------|----------------------------|--------------------------------------------------|
-| `TELEGRAM_ARCHIVE_URL`  | `http://localhost:3000`    | Telegram-Archive instance URL (without trailing /)|
-| `TELEGRAM_ARCHIVE_USER` | _(empty)_                  | Login username for session auth via `/api/login` |
-| `TELEGRAM_ARCHIVE_PASS` | _(empty)_                  | Login password for session auth via `/api/login` |
-| `LISTEN_ADDR`           | `127.0.0.1:8080`           | HTTP listen address (Docker sets `0.0.0.0:8080`) |
-| `MCP_AUTH_TOKEN`        | _(empty)_                  | Bearer token for HTTP auth (required if not loopback) |
-| `TRANSPORT`             | _(empty = HTTP)_           | Set to `stdio` for stdio transport               |
-
-Put them in a `.env` file (from `.env.example`) or set them in the environment.
-
-## Testing
-
-Tested with [Inspector](https://modelcontextprotocol.io/docs/tools/inspector) and it is currently fully working. Before making a PR, make sure this MCP server behaves well via this medium.
-
-## Example configuration for client LLMs
-
-```json
-{
-  "schema_version": "v1",
-  "name_for_human": "Telegram-Archive-MCP",
-  "name_for_model": "telegram_archive_mcp",
-  "description_for_human": "Search messages, browse chats, and access archived Telegram history.",
-  "description_for_model": "Interact with a Telegram-Archive instance that stores archived Telegram messages. First call initialize, then reuse the returned session id in header \"Mcp-Session-Id\" for every other call. Use readResource to fetch URIs that begin with telegram-archive://. Use listTools to discover available actions and callTool to execute them.",
-  "auth": {
-    "type": "bearer",
-    "token": "<your MCP_AUTH_TOKEN value>"
-  },
-  "api": {
-    "type": "jsonrpc-mcp",
-    "url":  "http://localhost:8080/mcp",
-    "init_method": "initialize",
-    "session_header": "Mcp-Session-Id"
-  },
-  "contact_email": "acsdesk@protonmail.com",
-  "legal_info_url": "https://github.com/GeiserX/telegram-archive-mcp/blob/main/LICENSE"
-}
-```
-
-## Credits
-
-[Telegram-Archive](https://github.com/nicmart-dev/telegram-archive) -- Telegram message archival and search
-
-[MCP-GO](https://github.com/mark3labs/mcp-go) -- modern MCP implementation
-
-[GoReleaser](https://goreleaser.com/) -- painless multi-arch releases
-
-## Maintainers
-
-[@GeiserX](https://github.com/GeiserX).
-
-## Contributing
-
-Feel free to dive in! [Open an issue](https://github.com/GeiserX/telegram-archive-mcp/issues/new) or submit PRs.
-
-Telegram-Archive-MCP follows the [Contributor Covenant](http://contributor-covenant.org/version/2/1/) Code of Conduct.
-
-## Other MCP Servers by GeiserX
-
-- [cashpilot-mcp](https://github.com/GeiserX/cashpilot-mcp) — Passive income monitoring
-- [duplicacy-mcp](https://github.com/GeiserX/duplicacy-mcp) — Backup health monitoring
-- [genieacs-mcp](https://github.com/GeiserX/genieacs-mcp) — TR-069 device management
-- [lynxprompt-mcp](https://github.com/GeiserX/lynxprompt-mcp) — AI configuration blueprints
-- [pumperly-mcp](https://github.com/GeiserX/pumperly-mcp) — Fuel and EV charging prices
-
-## Related Projects
-
-| Project | Description |
-|---------|-------------|
-| [Telegram-Archive](https://github.com/GeiserX/Telegram-Archive) | Automated, incremental Telegram backups with a local web viewer |
-| [telegram-delay-channel-cloner](https://github.com/GeiserX/telegram-delay-channel-cloner) | Telegram bot that relays messages between channels with configurable delay |
-| [telegram-slskd-local-bot](https://github.com/GeiserX/telegram-slskd-local-bot) | Automated music discovery and download via Telegram bot with Soulseek |
-| [paperless-telegram-bot](https://github.com/GeiserX/paperless-telegram-bot) | Manage Paperless-NGX documents entirely through Telegram |
-| [n8n-nodes-telegram-archive](https://github.com/GeiserX/n8n-nodes-telegram-archive) | n8n community node for Telegram-Archive |
+[GPL-3.0](https://github.com/GeiserX/telegram-archive-mcp/blob/main/LICENSE)
