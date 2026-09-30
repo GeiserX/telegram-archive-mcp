@@ -20,6 +20,9 @@ hide:
 
 **telegram-archive-mcp** lets Claude, Cursor or any other MCP client read the Telegram history you keep with [Telegram Archive](https://geiserx.github.io/Telegram-Archive/). Without it, the archive is a web viewer you search by hand, one chat at a time. With it, you ask the assistant "what was the address someone posted in the climbing group last spring?" and it finds the chat, searches it, reads the messages of the right day and answers from them. It signs in to your viewer the way a browser does, only reads, and runs as one Go binary with no database of its own. Start with [Getting started](getting-started.md), then [Usage](usage.md) for what the assistant can read.
 
+!!! note "These pages describe `main`, ahead of the latest release"
+    `npx -y telegram-archive-mcp` and the Docker image still run v0.1.1. That release has no `MCP_AUTH_TOKEN` for HTTP and none of the paging and whole-day changes on [Usage](usage.md). Until the next release ships them, get them with a [local build](getting-started.md#local-build).
+
 <div class="grid cards" markdown>
 
 -   :material-download: **[Getting started](getting-started.md)**
