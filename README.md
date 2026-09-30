@@ -48,15 +48,17 @@ npx telegram-archive-mcp
 }
 ```
 
-Set the URL, user and password of your Telegram-Archive viewer. Docker Compose (HTTP on `127.0.0.1:8080`) and local builds are in [Getting started](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/getting-started.md).
+Set the URL, user and password of your Telegram-Archive viewer. Docker Compose (HTTP on `127.0.0.1:8080`) and local builds are in [Getting started](https://geiserx.github.io/telegram-archive-mcp/getting-started/).
 
 ## Documentation
 
-- [Getting started](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/getting-started.md): Docker Compose, npm, local build
-- [Configuration](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/configuration.md): environment variables and client configuration
-- [Usage](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/usage.md): resources and tools
-- [Development](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/development.md): testing, contributing, credits
-- [Related projects](https://github.com/GeiserX/telegram-archive-mcp/blob/main/docs/related.md)
+The full documentation is at [geiserx.github.io/telegram-archive-mcp](https://geiserx.github.io/telegram-archive-mcp/).
+
+- [Getting started](https://geiserx.github.io/telegram-archive-mcp/getting-started/): npm, Docker Compose, local build
+- [Configuration](https://geiserx.github.io/telegram-archive-mcp/configuration/): environment variables and client configuration
+- [Usage](https://geiserx.github.io/telegram-archive-mcp/usage/): the 4 resources and 9 tools, paging, reading one day at a time
+- [Development](https://geiserx.github.io/telegram-archive-mcp/development/): testing, contributing, credits
+- [Related projects](https://geiserx.github.io/telegram-archive-mcp/related/): Telegram Archive, other MCP servers, where this one is listed
 
 ## License
 
