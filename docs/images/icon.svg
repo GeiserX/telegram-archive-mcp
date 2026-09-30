@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="256" height="256" role="img" aria-label="telegram-archive-mcp">
+  <!--
+    Favicon: the same bubble and tick as logo.svg on the banner's background
+    colour (#0E1621) as a rounded plate, so the mark keeps its edge on a light
+    browser tab.
+  -->
+  <rect width="96" height="96" rx="20" fill="#0E1621"/>
+  <rect x="6" y="19" width="74" height="58" rx="14" fill="#2AABEE"/>
+  <path d="M66 77H90Q80 73 78 59Z" fill="#2AABEE"/>
+  <path d="M0 5L3.5 8.5L10 1M5.5 6.5L7.5 8.5L14 1" transform="translate(20.6 32.8) scale(3.2)" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
