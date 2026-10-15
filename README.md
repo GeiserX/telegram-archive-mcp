@@ -19,7 +19,7 @@
 - Read-only resources for archive stats, chats, folders and health (`telegram-archive://stats`, `telegram-archive://chats`).
 - Message search, message paging by offset or keyset cursor, and whole calendar days in a timezone (`get_messages_by_date`).
 - Pinned messages, forum topics and per-chat statistics.
-- The photo attached to a message, returned as an image the model can look at (`get_media`).
+- The photo attached to a message, returned as an image the model can look at and scaled to 1568 pixels when larger (`get_media`).
 - Signs in to Telegram-Archive through `/api/login` with `TELEGRAM_ARCHIVE_USER` and `TELEGRAM_ARCHIVE_PASS`.
 - One JSON-RPC endpoint (`/mcp`) over HTTP, or stdio with `TRANSPORT=stdio`.
 - Listens on loopback by default; `MCP_AUTH_TOKEN` adds bearer auth when you expose it.
