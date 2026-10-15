@@ -1102,3 +1102,43 @@ func TestNewListChats_RejectsFractionalOffset(t *testing.T) {
 		t.Errorf("expected a whole-number error, got %s", resultText(t, result))
 	}
 }
+
+// An agent goes from "did you see my image?" to the photo through the message
+// rows: reply_to_msg_id names the message answered, and its media says the kind
+// and, through url, whether get_media can fetch the file. Every message tool
+// must pass both through.
+func TestMessageTools_KeepReplyAndMedia(t *testing.T) {
+	row := `{"id":20,"date":"2025-01-15T10:00:00","text":"did you see it?","reply_to_msg_id":19,"media":{"id":"20_photo","type":"photo","url":"/media/c1/20_photo","downloaded":true}}`
+	ts, c := newTestClient(t, map[string]http.HandlerFunc{
+		"/api/chats/c1/messages": func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("[" + row + "]"))
+		},
+	})
+	defer ts.Close()
+
+	_, getMessages := NewGetMessages(c)
+	_, search := NewSearchMessages(c)
+	_, byDate := NewGetMessagesByDate(c)
+	calls := map[string]struct {
+		handler func(context.Context, mcp.CallToolRequest) (*mcp.CallToolResult, error)
+		args    map[string]any
+	}{
+		"get_messages":         {getMessages, map[string]any{"chat_id": "c1"}},
+		"search_messages":      {search, map[string]any{"chat_id": "c1", "query": "see"}},
+		"get_messages_by_date": {byDate, map[string]any{"chat_id": "c1", "date": "2025-01-15"}},
+	}
+	for name, call := range calls {
+		t.Run(name, func(t *testing.T) {
+			result, err := call.handler(context.Background(), makeToolRequest(call.args))
+			if err != nil || result.IsError {
+				t.Fatalf("handler failed: %v %s", err, resultText(t, result))
+			}
+			text := resultText(t, result)
+			for _, want := range []string{`"reply_to_msg_id":19`, `"type":"photo"`, `"url":"/media/c1/20_photo"`} {
+				if !strings.Contains(text, want) {
+					t.Errorf("%s lost %s: %s", name, want, text)
+				}
+			}
+		})
+	}
+}

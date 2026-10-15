@@ -34,14 +34,18 @@ Most tools take a `chat_id`. Call `list_chats` first: the `ref` of each chat is 
 
 ### Looking at a photo
 
-`get_media` takes the `chat_id` and the `id` of a message from any of the message tools. Its first content block is always a JSON text block:
+Every message row from `get_messages`, `get_messages_by_date` and `search_messages` carries `reply_to_msg_id`, the id of the message it answers, and `media` when it has a file or other media: `media.type` is the kind (`photo`, `document`, `video`, `geo`...) and `media.url` is set when the archive holds a file `get_media` can fetch. So from a reply such as "did you see my picture?" an agent reads `reply_to_msg_id` and passes it to `get_media`.
+
+`get_media` takes the `chat_id` and the `id` of a message. Its first content block is always a JSON text block:
 
 ```json
-{"message_id": 42, "media_key": "42_photo", "kind": "photo", "file_name": "1234567890_photo.jpg", "mime_type": "image/jpeg", "size_bytes": 36129, "image_returned": true}
+{"message_id": 42, "date": "2026-06-10T18:04:17", "sender": "Ada Lovelace", "text": "our new kitchen", "reply_to_msg_id": null, "media_key": "42_photo", "kind": "photo", "file_name": "1234567890_photo.jpg", "mime_type": "image/jpeg", "size_bytes": 412345, "image_returned": true, "width": 1568, "height": 1176, "scaled": true}
 ```
 
-- A JPEG, PNG, WebP or GIF of up to 3,932,160 bytes (3.75 MB) follows as an MCP `image` block, so the model sees it. At that size the base64 is 5 MB, the Claude API's limit for one image. The type comes from the file's bytes, not from the archive's metadata.
-- Any other file, and a larger image, gets the text block only, with `image_returned: false` and a `note` saying why. The file itself is never sent, and an image is never cut short.
+`date`, `sender`, `text` (the caption) and `reply_to_msg_id` describe the message. `file_name`, `mime_type` and `size_bytes` describe the original file; `width`, `height` and `scaled` describe the image sent.
+
+- A JPEG, PNG, WebP or GIF follows as an MCP `image` block, so the model sees it. When it is at most 1568 pixels on its longest side and at most 2,000,000 bytes it is sent as is. Otherwise it is sent as a JPEG scaled to 1568 pixels on its longest side, with `scaled: true`; the Claude API scales larger images down to that size anyway. Transparent areas turn white. The type comes from the file's bytes, not from the archive's metadata.
+- Any other file gets the text block only, with `image_returned: false` and a `note` saying why. So does an image whose file is over 20 MB or whose header claims more than 50 million pixels. The file itself is never sent, and an image is never cut short.
 - The location map picture the archive keeps for a `geo` or `venue` message comes back as an image too.
 - The call fails (`isError`) with a sentence saying why when the message does not exist in that chat, has no media, has a kind with no file (a contact, a poll, a location without a map), has a file the archive has not downloaded, or when the viewer login has downloads turned off.
 
