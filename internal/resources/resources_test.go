@@ -99,7 +99,7 @@ func TestRegisterChats_ReturnsChatsContent(t *testing.T) {
 	s := server.NewMCPServer("test", "0.0.1")
 	RegisterChats(s, c)
 
-	body, err := c.GetChats(context.Background(), 100)
+	body, err := c.GetChats(context.Background(), 100, 0)
 	if err != nil {
 		t.Fatalf("GetChats error: %v", err)
 	}
@@ -119,7 +119,7 @@ func TestRegisterChats_HandlerReturnsErrorOnAPIFailure(t *testing.T) {
 	s := server.NewMCPServer("test", "0.0.1")
 	RegisterChats(s, c)
 
-	_, err := c.GetChats(context.Background(), 100)
+	_, err := c.GetChats(context.Background(), 100, 0)
 	if err == nil {
 		t.Error("expected error on 502")
 	}

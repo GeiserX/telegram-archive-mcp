@@ -3,6 +3,8 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -293,7 +295,7 @@ func TestGetChats_SendsLimitQueryParam(t *testing.T) {
 	ts, c := newTestServer(t, mux)
 	defer ts.Close()
 
-	_, err := c.GetChats(context.Background(), 25)
+	_, err := c.GetChats(context.Background(), 25, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -310,7 +312,7 @@ func TestGetChats_OmitsLimitWhenZero(t *testing.T) {
 	ts, c := newTestServer(t, mux)
 	defer ts.Close()
 
-	_, err := c.GetChats(context.Background(), 0)
+	_, err := c.GetChats(context.Background(), 0, 0)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -698,5 +700,143 @@ func TestGetMessagesCursor_OmitsZeroValues(t *testing.T) {
 	_, err := c.GetMessagesCursor(context.Background(), "c1", 0, MessagesCursor{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+// --- Session reuse ---
+
+// The viewer allows 15 logins per client IP in 5 minutes, so the client must
+// log in once and reuse the cookie, and log in again only after a 401.
+func TestDoAuth_ReusesSessionAcrossCalls(t *testing.T) {
+	var logins atomic.Int32
+	var expired atomic.Bool
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/login", func(w http.ResponseWriter, r *http.Request) {
+		n := logins.Add(1)
+		http.SetCookie(w, &http.Cookie{Name: "viewer_auth", Value: fmt.Sprintf("session%d", n)})
+	})
+	mux.HandleFunc("/api/stats", func(w http.ResponseWriter, r *http.Request) {
+		ck, err := r.Cookie("viewer_auth")
+		if err != nil || (expired.Load() && ck.Value == "session1") {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Write([]byte(`{}`))
+	})
+	ts, c := newTestServer(t, mux)
+	defer ts.Close()
+
+	for i := 0; i < 5; i++ {
+		if _, err := c.GetStats(context.Background()); err != nil {
+			t.Fatalf("call %d: %v", i, err)
+		}
+	}
+	if n := logins.Load(); n != 1 {
+		t.Fatalf("logins after 5 calls = %d, want 1", n)
+	}
+
+	expired.Store(true)
+	for i := 0; i < 5; i++ {
+		if _, err := c.GetStats(context.Background()); err != nil {
+			t.Fatalf("call after expiry %d: %v", i, err)
+		}
+	}
+	if n := logins.Load(); n != 2 {
+		t.Fatalf("logins after the session expired = %d, want 2", n)
+	}
+}
+
+// A 401 for a cookie another call has already replaced must not throw the new
+// cookie away: that would cost one more login per concurrent call.
+func TestDoAuth_401KeepsACookieRenewedMeanwhile(t *testing.T) {
+	var logins atomic.Int32
+	var c *Client
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/login", func(w http.ResponseWriter, r *http.Request) {
+		logins.Add(1)
+		http.SetCookie(w, &http.Cookie{Name: "viewer_auth", Value: "relogin"})
+	})
+	mux.HandleFunc("/api/stats", func(w http.ResponseWriter, r *http.Request) {
+		ck, _ := r.Cookie("viewer_auth")
+		if ck == nil || ck.Value == "old" {
+			// Another call logged in while this one was in flight.
+			c.mu.Lock()
+			c.cookie = "fresh"
+			c.mu.Unlock()
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Write([]byte(ck.Value))
+	})
+	ts := httptest.NewServer(mux)
+	defer ts.Close()
+	c = New(ts.URL, "admin", "secret")
+	c.cookie = "old"
+
+	body, err := c.GetStats(context.Background())
+	if err != nil {
+		t.Fatalf("GetStats: %v", err)
+	}
+	if string(body) != "fresh" {
+		t.Errorf("retry used cookie %q, want the renewed one", string(body))
+	}
+	if n := logins.Load(); n != 0 {
+		t.Errorf("logins = %d, want 0", n)
+	}
+}
+
+// --- GetMedia ---
+
+func TestGetMedia_EscapesPathAndReturnsBytes(t *testing.T) {
+	mux := loginMux()
+	mux.HandleFunc("/media/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.EscapedPath() != "/media/c%2F1/42_photo" {
+			t.Errorf("path = %q", r.URL.EscapedPath())
+		}
+		w.Write([]byte("bytes"))
+	})
+	ts, c := newTestServer(t, mux)
+	defer ts.Close()
+
+	b, err := c.GetMedia(context.Background(), "c/1", "42_photo", 100)
+	if err != nil {
+		t.Fatalf("GetMedia: %v", err)
+	}
+	if string(b) != "bytes" {
+		t.Errorf("body = %q", string(b))
+	}
+}
+
+func TestGetMedia_StopsAtTheLimit(t *testing.T) {
+	mux := loginMux()
+	mux.HandleFunc("/media/c1/42_photo", func(w http.ResponseWriter, r *http.Request) {
+		w.Write(make([]byte, 11))
+	})
+	ts, c := newTestServer(t, mux)
+	defer ts.Close()
+
+	if _, err := c.GetMedia(context.Background(), "c1", "42_photo", 11); err != nil {
+		t.Fatalf("a body at the limit must pass: %v", err)
+	}
+	_, err := c.GetMedia(context.Background(), "c1", "42_photo", 10)
+	var tooLarge *TooLargeError
+	if !errors.As(err, &tooLarge) || tooLarge.Limit != 10 {
+		t.Errorf("err = %v, want *TooLargeError{Limit: 10}", err)
+	}
+}
+
+func TestGetChats_SendsOffset(t *testing.T) {
+	mux := loginMux()
+	mux.HandleFunc("/api/chats", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("offset") != "200" {
+			t.Errorf("offset = %q, want 200", r.URL.Query().Get("offset"))
+		}
+		w.Write([]byte(`{"chats":[]}`))
+	})
+	ts, c := newTestServer(t, mux)
+	defer ts.Close()
+
+	if _, err := c.GetChats(context.Background(), 100, 200); err != nil {
+		t.Fatalf("GetChats: %v", err)
 	}
 }

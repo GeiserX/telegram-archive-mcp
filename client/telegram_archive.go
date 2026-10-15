@@ -16,6 +16,16 @@ import (
 
 const maxResponseBody = 10 << 20 // 10 MB
 
+// TooLargeError reports a response body larger than the caller's limit. The
+// body is not returned.
+type TooLargeError struct {
+	Limit int64
+}
+
+func (e *TooLargeError) Error() string {
+	return fmt.Sprintf("telegram-archive response exceeds %d bytes", e.Limit)
+}
+
 // Client wraps all HTTP interaction with telegram-archive's REST API.
 // It performs cookie-based authentication (POST /api/login) and
 // transparently re-authenticates on 401 responses.
@@ -78,6 +88,12 @@ func (c *Client) login(ctx context.Context) error {
 // and retries. The body parameter is kept so retries can replay it (the
 // original request body is consumed by the first attempt).
 func (c *Client) doAuth(ctx context.Context, method, rawurl string, body []byte, retry bool) ([]byte, error) {
+	return c.doAuthLimit(ctx, method, rawurl, body, retry, maxResponseBody)
+}
+
+// doAuthLimit is doAuth with a cap on the response body: a larger body
+// returns a *TooLargeError.
+func (c *Client) doAuthLimit(ctx context.Context, method, rawurl string, body []byte, retry bool, limit int64) ([]byte, error) {
 	c.mu.Lock()
 	if c.cookie == "" {
 		if err := c.login(ctx); err != nil {
@@ -104,13 +120,18 @@ func (c *Client) doAuth(ctx context.Context, method, rawurl string, body []byte,
 	}
 	defer resp.Body.Close()
 
-	// Re-authenticate on 401 (expired cookie), but only once.
+	// Re-authenticate on 401 (expired cookie), but only once. Clear the cookie
+	// only if it is still the one this request sent: another call may already
+	// have logged in again, and dropping its fresh cookie would cost a second
+	// login against the viewer's per-IP login limit.
 	if resp.StatusCode == 401 && retry {
 		c.mu.Lock()
-		c.cookie = ""
+		if c.cookie == cookie {
+			c.cookie = ""
+		}
 		c.mu.Unlock()
 
-		return c.doAuth(ctx, method, rawurl, body, false)
+		return c.doAuthLimit(ctx, method, rawurl, body, false, limit)
 	}
 
 	if resp.StatusCode >= 400 {
@@ -125,12 +146,12 @@ func (c *Client) doAuth(ctx context.Context, method, rawurl string, body []byte,
 		}
 		return nil, fmt.Errorf("telegram-archive error %d: %s", resp.StatusCode, msg)
 	}
-	b, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBody+1))
+	b, err := io.ReadAll(io.LimitReader(resp.Body, limit+1))
 	if err != nil {
 		return nil, err
 	}
-	if int64(len(b)) > maxResponseBody {
-		return nil, fmt.Errorf("telegram-archive response exceeds %d bytes", maxResponseBody)
+	if int64(len(b)) > limit {
+		return nil, &TooLargeError{Limit: limit}
 	}
 	return b, nil
 }
@@ -151,10 +172,13 @@ func (c *Client) GetStats(ctx context.Context) ([]byte, error) {
 }
 
 // GetChats returns a list of chats.
-func (c *Client) GetChats(ctx context.Context, limit int) ([]byte, error) {
+func (c *Client) GetChats(ctx context.Context, limit, offset int) ([]byte, error) {
 	q := url.Values{}
 	if limit > 0 {
 		q.Set("limit", fmt.Sprintf("%d", limit))
+	}
+	if offset > 0 {
+		q.Set("offset", fmt.Sprintf("%d", offset))
 	}
 	return c.doAuth(ctx, "GET", c.buildURL("/api/chats", q), nil, true)
 }
@@ -258,4 +282,12 @@ func (c *Client) GetTopics(ctx context.Context, chatID string) ([]byte, error) {
 // RefreshStats triggers a forced recalculation of global stats.
 func (c *Client) RefreshStats(ctx context.Context) ([]byte, error) {
 	return c.doAuth(ctx, "POST", c.buildURL("/api/stats/refresh", nil), nil, true)
+}
+
+// GetMedia downloads the file of one media item, addressed by chat ref and
+// media key ({message_id}_{type}, the media.id of a message). A file larger
+// than maxBytes returns a *TooLargeError.
+func (c *Client) GetMedia(ctx context.Context, chatID, mediaKey string, maxBytes int64) ([]byte, error) {
+	path := fmt.Sprintf("/media/%s/%s", url.PathEscape(chatID), url.PathEscape(mediaKey))
+	return c.doAuthLimit(ctx, "GET", c.buildURL(path, nil), nil, true, maxBytes)
 }

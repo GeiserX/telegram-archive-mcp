@@ -41,7 +41,7 @@ hide:
 
     ---
 
-    The 4 resources and 9 tools, their arguments, paging through a long chat and reading one day at a time.
+    The 4 resources and 10 tools, their arguments, paging through a long chat and reading one day at a time.
 
 -   :material-format-list-bulleted: **[Configuration](configuration.md)**
 
@@ -57,6 +57,7 @@ hide:
 - Messages that contain a keyword in one chat (`search_messages`).
 - A chat's messages, newest first, as far back as the archive goes (`get_messages`), or every message of one calendar day in your timezone (`get_messages_by_date`).
 - Pinned messages, forum topics and per-chat statistics, and the archive's totals and health as resources.
+- The photo attached to a message, as an image the model can look at, or the name, type and size of any other file (`get_media`).
 
 The full list with every argument is on [Usage](usage.md).
 
@@ -87,7 +88,7 @@ flowchart LR
 
 ## Privacy
 
-- Every message a tool returns goes into your MCP client's conversation, and from there to the model the client uses. With a hosted model, that provider receives those messages. Point the server at an archive you are willing to share that way, and keep your client's tool-approval prompts on.
+- Every message and image a tool returns goes into your MCP client's conversation, and from there to the model the client uses. With a hosted model, that provider receives those messages. Point the server at an archive you are willing to share that way, and keep your client's tool-approval prompts on.
 - The server logs its version and its listen address, never message text, chat names or credentials.
 - Over stdio, the viewer's password sits in your client's configuration file. Over HTTP, it stays on the machine that runs the server.
 
