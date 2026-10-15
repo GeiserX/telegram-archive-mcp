@@ -113,6 +113,9 @@ func main() {
 	tool, handler = tools.NewRefreshStats(c)
 	s.AddTool(tool, handler)
 
+	tool, handler = tools.NewGetMedia(c)
+	s.AddTool(tool, handler)
+
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()
 

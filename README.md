@@ -19,6 +19,7 @@
 - Read-only resources for archive stats, chats, folders and health (`telegram-archive://stats`, `telegram-archive://chats`).
 - Message search, message paging by offset or keyset cursor, and whole calendar days in a timezone (`get_messages_by_date`).
 - Pinned messages, forum topics and per-chat statistics.
+- The photo attached to a message, returned as an image the model can look at (`get_media`).
 - Signs in to Telegram-Archive through `/api/login` with `TELEGRAM_ARCHIVE_USER` and `TELEGRAM_ARCHIVE_PASS`.
 - One JSON-RPC endpoint (`/mcp`) over HTTP, or stdio with `TRANSPORT=stdio`.
 - Listens on loopback by default; `MCP_AUTH_TOKEN` adds bearer auth when you expose it.
@@ -56,7 +57,7 @@ The full documentation is at [geiserx.github.io/telegram-archive-mcp](https://ge
 
 - [Getting started](https://geiserx.github.io/telegram-archive-mcp/getting-started/): npm, Docker Compose, local build
 - [Configuration](https://geiserx.github.io/telegram-archive-mcp/configuration/): environment variables and client configuration
-- [Usage](https://geiserx.github.io/telegram-archive-mcp/usage/): the 4 resources and 9 tools, paging, reading one day at a time
+- [Usage](https://geiserx.github.io/telegram-archive-mcp/usage/): the 4 resources and 10 tools, paging, reading one day at a time
 - [Development](https://geiserx.github.io/telegram-archive-mcp/development/): testing, contributing, credits
 - [Related projects](https://geiserx.github.io/telegram-archive-mcp/related/): Telegram Archive, other MCP servers, where this one is listed
 

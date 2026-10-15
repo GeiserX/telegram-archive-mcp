@@ -1029,3 +1029,76 @@ func TestNewGetMessages_RejectsNonStringBeforeDate(t *testing.T) {
 		t.Errorf("unexpected message: %s", text)
 	}
 }
+
+// A gateway maps a Telegram chat id to its archive refs from list_chats, so
+// every row must reach the agent with ref, id, type and accounts intact.
+func TestNewListChats_RowsCarryRefIDTypeAndAccounts(t *testing.T) {
+	ts, c := newTestClient(t, map[string]http.HandlerFunc{
+		"/api/chats": func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte(`{"chats":[{"id":-1001234567890,"ref":"r1","type":"channel","title":"News","accounts":[1,2]}],"total":1,"limit":100,"offset":0,"has_more":false}`))
+		},
+	})
+	defer ts.Close()
+
+	_, handler := NewListChats(c)
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{}))
+	if err != nil || result.IsError {
+		t.Fatalf("handler failed: %v %s", err, resultText(t, result))
+	}
+	var page struct {
+		Chats []struct {
+			ID       json.Number `json:"id"`
+			Ref      string      `json:"ref"`
+			Type     string      `json:"type"`
+			Accounts []int       `json:"accounts"`
+		} `json:"chats"`
+	}
+	dec := json.NewDecoder(strings.NewReader(resultText(t, result)))
+	dec.UseNumber()
+	if err := dec.Decode(&page); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(page.Chats) != 1 {
+		t.Fatalf("chats = %d, want 1", len(page.Chats))
+	}
+	row := page.Chats[0]
+	if row.ID.String() != "-1001234567890" || row.Ref != "r1" || row.Type != "channel" || len(row.Accounts) != 2 {
+		t.Errorf("row lost a field: %+v", row)
+	}
+}
+
+func TestNewListChats_SendsOffset(t *testing.T) {
+	ts, c := newTestClient(t, map[string]http.HandlerFunc{
+		"/api/chats": func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Query().Get("offset") != "100" {
+				t.Errorf("offset = %q, want 100", r.URL.Query().Get("offset"))
+			}
+			w.Write([]byte(`{"chats":[]}`))
+		},
+	})
+	defer ts.Close()
+
+	_, handler := NewListChats(c)
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{"offset": float64(100)}))
+	if err != nil || result.IsError {
+		t.Fatalf("handler failed: %v", err)
+	}
+}
+
+func TestNewListChats_RejectsFractionalOffset(t *testing.T) {
+	ts, c := newTestClient(t, map[string]http.HandlerFunc{
+		"/api/chats": func(w http.ResponseWriter, r *http.Request) {
+			t.Error("the archive must not be called with an invalid offset")
+		},
+	})
+	defer ts.Close()
+
+	_, handler := NewListChats(c)
+	result, err := handler(context.Background(), makeToolRequest(map[string]any{"offset": float64(1.5)}))
+	if err != nil {
+		t.Fatalf("handler error: %v", err)
+	}
+	if !result.IsError || !strings.Contains(resultText(t, result), "whole number") {
+		t.Errorf("expected a whole-number error, got %s", resultText(t, result))
+	}
+}
