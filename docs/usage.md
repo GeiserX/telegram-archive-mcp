@@ -44,8 +44,8 @@ Every message row from `get_messages`, `get_messages_by_date` and `search_messag
 
 `date`, `sender`, `text` (the caption) and `reply_to_msg_id` describe the message. `file_name`, `mime_type` and `size_bytes` describe the original file; `width`, `height` and `scaled` describe the image sent.
 
-- A JPEG, PNG, WebP or GIF follows as an MCP `image` block, so the model sees it. When it is at most 1568 pixels on its longest side and at most 2,000,000 bytes it is sent as is. Otherwise it is sent as a JPEG scaled to 1568 pixels on its longest side, with `scaled: true`; the Claude API scales larger images down to that size anyway. Transparent areas turn white. The type comes from the file's bytes, not from the archive's metadata.
-- Any other file gets the text block only, with `image_returned: false` and a `note` saying why. So does an image whose file is over 20 MB or whose header claims more than 50 million pixels. The file itself is never sent, and an image is never cut short.
+- A JPEG, PNG, WebP or GIF follows as an MCP `image` block, so the model sees it. When it is at most 1568 pixels on its longest side and at most 2,000,000 bytes it is sent as is. Otherwise it is sent as a JPEG scaled to 1568 pixels on its longest side, with `scaled: true`; the Claude API scales larger images down to that size anyway. Transparent areas turn white, and a JPEG stored sideways with an EXIF orientation tag is turned upright (and so always re-encoded). The type comes from the file's bytes, not from the archive's metadata.
+- Any other file gets the text block only, with `image_returned: false` and a `note` saying why. So does an image whose file is over 20 MB or whose header claims more than 25 million pixels. The file itself is never sent, and an image is never cut short.
 - The location map picture the archive keeps for a `geo` or `venue` message comes back as an image too.
 - The call fails (`isError`) with a sentence saying why when the message does not exist in that chat, has no media, has a kind with no file (a contact, a poll, a location without a map), has a file the archive has not downloaded, or when the viewer login has downloads turned off.
 

@@ -10,9 +10,12 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"image/gif"
+	"image/jpeg"
 	"image/png"
 	"math/rand/v2"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 
@@ -464,4 +467,115 @@ func TestNewGetMedia_ToolDefinition(t *testing.T) {
 func itoa(n int) string {
 	b, _ := json.Marshal(n)
 	return string(b)
+}
+
+// halves is a w x h image, left half a, right half b.
+func halves(w, h int, a, b color.RGBA) *image.RGBA {
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	draw.Draw(img, image.Rect(0, 0, w/2, h), image.NewUniform(a), image.Point{}, draw.Src)
+	draw.Draw(img, image.Rect(w/2, 0, w, h), image.NewUniform(b), image.Point{}, draw.Src)
+	return img
+}
+
+var (
+	red  = color.RGBA{255, 0, 0, 255}
+	blue = color.RGBA{0, 0, 255, 255}
+)
+
+// isNear reports whether the pixel at (x, y) is close to want, allowing for
+// JPEG loss.
+func isNear(img image.Image, x, y int, want color.RGBA) bool {
+	r, g, b, _ := img.At(x, y).RGBA()
+	d := func(a uint32, b uint8) bool { return int(a>>8)-int(b) < 60 && int(b)-int(a>>8) < 60 }
+	return d(r, want.R) && d(g, want.G) && d(b, want.B)
+}
+
+// jpegWithOrientation encodes img as a JPEG carrying an EXIF orientation tag.
+func jpegWithOrientation(t *testing.T, img image.Image, o uint16) []byte {
+	t.Helper()
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: 95}); err != nil {
+		t.Fatalf("encode jpeg: %v", err)
+	}
+	tiff := []byte("MM\x00\x2a\x00\x00\x00\x08\x00\x01\x01\x12\x00\x03\x00\x00\x00\x01")
+	tiff = append(tiff, byte(o>>8), byte(o), 0, 0, 0, 0, 0, 0)
+	seg := append([]byte("Exif\x00\x00"), tiff...)
+	app1 := []byte{0xFF, 0xE1, byte((len(seg) + 2) >> 8), byte(len(seg) + 2)}
+	app1 = append(app1, seg...)
+	data := buf.Bytes()
+	return append(append(append([]byte{}, data[:2]...), app1...), data[2:]...)
+}
+
+// A camera JPEG stored sideways is turned upright, even when it is small
+// enough to send as is: decoding drops the EXIF tag, and not every client
+// reads it.
+func TestNewGetMedia_TurnsAnExifRotatedJPEGUpright(t *testing.T) {
+	cases := []struct {
+		o          uint16
+		w, h       int
+		redAt      image.Point
+		blueAt     image.Point
+		orientName string
+	}{
+		{6, 20, 40, image.Pt(10, 5), image.Pt(10, 35), "rotate 90 clockwise"},
+		{8, 20, 40, image.Pt(10, 35), image.Pt(10, 5), "rotate 90 counter-clockwise"},
+		{3, 40, 20, image.Pt(35, 10), image.Pt(5, 10), "rotate 180"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.orientName, func(t *testing.T) {
+			data := jpegWithOrientation(t, halves(40, 20, red, blue), tc.o)
+			result := serveImage(t, data)
+			_, img, _ := returnedImage(t, result)
+			if b := img.Bounds(); b.Dx() != tc.w || b.Dy() != tc.h {
+				t.Fatalf("returned %dx%d, want %dx%d", b.Dx(), b.Dy(), tc.w, tc.h)
+			}
+			if !isNear(img, tc.redAt.X, tc.redAt.Y, red) || !isNear(img, tc.blueAt.X, tc.blueAt.Y, blue) {
+				t.Errorf("image not turned upright: %v at %v, %v at %v", img.At(tc.redAt.X, tc.redAt.Y), tc.redAt, img.At(tc.blueAt.X, tc.blueAt.Y), tc.blueAt)
+			}
+			if info := mediaInfoOf(t, result); !info.Scaled || info.Width != tc.w || info.Height != tc.h {
+				t.Errorf("unexpected info: %+v", info)
+			}
+		})
+	}
+}
+
+func TestNewGetMedia_SmallUprightJPEGIsSentAsIs(t *testing.T) {
+	data := jpegWithOrientation(t, halves(40, 20, red, blue), 1)
+	_, _, raw := returnedImage(t, serveImage(t, data))
+	if !bytes.Equal(raw, data) {
+		t.Error("an upright JPEG within the limits must be sent byte for byte")
+	}
+}
+
+func TestNewGetMedia_ScalesAGIF(t *testing.T) {
+	src := image.NewPaletted(image.Rect(0, 0, 2000, 10), color.Palette{red, blue})
+	draw.Draw(src, image.Rect(1000, 0, 2000, 10), image.NewUniform(blue), image.Point{}, draw.Src)
+	draw.Draw(src, image.Rect(0, 0, 1000, 10), image.NewUniform(red), image.Point{}, draw.Src)
+	var buf bytes.Buffer
+	if err := gif.Encode(&buf, src, nil); err != nil {
+		t.Fatalf("encode gif: %v", err)
+	}
+	ic, img, _ := returnedImage(t, serveImage(t, buf.Bytes()))
+	if ic.MIMEType != "image/jpeg" || img.Bounds().Dx() != 1568 || img.Bounds().Dy() != 7 {
+		t.Errorf("got %s %v, want image/jpeg 1568x7", ic.MIMEType, img.Bounds())
+	}
+	if !isNear(img, 100, 3, red) || !isNear(img, 1400, 3, blue) {
+		t.Error("GIF content lost in scaling")
+	}
+}
+
+// testdata/wide.webp is a lossless 2000x100 WebP: left half opaque red, right
+// half fully transparent.
+func TestNewGetMedia_ScalesAWebPWithAlpha(t *testing.T) {
+	data, err := os.ReadFile("testdata/wide.webp")
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	ic, img, _ := returnedImage(t, serveImage(t, data))
+	if ic.MIMEType != "image/jpeg" || img.Bounds().Dx() != 1568 || img.Bounds().Dy() != 78 {
+		t.Errorf("got %s %v, want image/jpeg 1568x78", ic.MIMEType, img.Bounds())
+	}
+	if !isNear(img, 100, 40, red) || !isNear(img, 1400, 40, color.RGBA{255, 255, 255, 255}) {
+		t.Errorf("want red left and white right, got %v and %v", img.At(100, 40), img.At(1400, 40))
+	}
 }
