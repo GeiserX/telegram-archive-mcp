@@ -178,6 +178,9 @@ func TestHTTP_RejectsBadTrustedOrigin(t *testing.T) {
 }
 
 func TestHTTP_CapsRequestBody(t *testing.T) {
+	// The budget is written out here, not read from maxRequestBody, so a
+	// change to the constant shows up as a failure.
+	const budget = 4 << 20
 	ts := newTestHTTP(t, httpOptions{})
 	// A valid request padded to n bytes of filler: only the size differs.
 	padded := func(n int) []byte {
@@ -185,12 +188,12 @@ func TestHTTP_CapsRequestBody(t *testing.T) {
 			append([]byte(`"params":{"pad":"`+strings.Repeat("x", n)), []byte(`",`)...), 1)
 	}
 	// Just under the cap: served.
-	r := decodeReply(t, post(t, ts.URL+"/mcp", padded(maxRequestBody-4096), modernHeaders))
+	r := decodeReply(t, post(t, ts.URL+"/mcp", padded(budget-4096), modernHeaders))
 	if r.Error != nil {
 		t.Fatalf("a body under the cap was refused: %d %s", r.Error.Code, r.Error.Message)
 	}
 	// Over it: 400 with a "too large" parse error, before any tool runs.
-	resp := post(t, ts.URL+"/mcp", padded(maxRequestBody+1), modernHeaders)
+	resp := post(t, ts.URL+"/mcp", padded(budget+1), modernHeaders)
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Fatalf("over the cap: status = %d, want 400", resp.StatusCode)
 	}
