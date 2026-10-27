@@ -21,8 +21,11 @@ go.work.sum
 dist/
 bin/
 node_modules/
-server
+/server
 site/
 
 # Beads: bead text lives in the Dolt tracker only, never in git
 .beads/*.jsonl
+
+# Bundled into the npm package by release.yml at publish time, never committed
+/checksums.txt

@@ -20,9 +20,6 @@ hide:
 
 **telegram-archive-mcp** lets Claude, Cursor or any other MCP client read the Telegram history you keep with [Telegram Archive](https://geiserx.github.io/Telegram-Archive/). Without it, the archive is a web viewer you search by hand, one chat at a time. With it, you ask the assistant "what was the address someone posted in the climbing group last spring?" and it finds the chat, searches it, reads the messages of the right day and answers from them. It signs in to your viewer the way a browser does, only reads, and runs as one Go binary with no database of its own. Start with [Getting started](getting-started.md), then [Usage](usage.md) for what the assistant can read.
 
-!!! note "These pages describe `main`, ahead of the latest release"
-    `npx -y telegram-archive-mcp` and the Docker image still run v0.1.1. That release has no `MCP_AUTH_TOKEN` for HTTP and none of the paging and whole-day changes on [Usage](usage.md). Until the next release ships them, get them with a [local build](getting-started.md#local-build).
-
 <div class="grid cards" markdown>
 
 -   :material-download: **[Getting started](getting-started.md)**
@@ -41,7 +38,7 @@ hide:
 
     ---
 
-    The 4 resources and 10 tools, their arguments, paging through a long chat and reading one day at a time.
+    The 4 resources and 12 tools, their arguments, paging through a long chat and reading one day at a time.
 
 -   :material-format-list-bulleted: **[Configuration](configuration.md)**
 
@@ -53,10 +50,11 @@ hide:
 
 ## What the assistant can read
 
-- Your chats and folders, with the ids the other tools take (`list_chats`, `list_folders`).
-- Messages that contain a keyword in one chat (`search_messages`).
+- Your chats and folders, with the ids the other tools take, filtered by name, folder or archived state (`list_chats`, `list_folders`).
+- Messages that contain a keyword, in every chat at once (`search_all_chats`) or in one chat (`search_messages`).
+- The conversation around one message (`get_message_context`).
 - A chat's messages, newest first, as far back as the archive goes (`get_messages`), or every message of one calendar day in your timezone (`get_messages_by_date`).
-- Pinned messages, forum topics and per-chat statistics, and the archive's totals and health as resources.
+- Pinned messages, forum topics (and any tool's messages narrowed to one topic), per-chat statistics, and the archive's totals and health as resources.
 - The photo attached to a message, as an image the model can look at, or the name, type and size of any other file (`get_media`).
 
 The full list with every argument is on [Usage](usage.md).
@@ -65,7 +63,7 @@ The full list with every argument is on [Usage](usage.md).
 
 ```mermaid
 flowchart LR
-    C[MCP client<br/>Claude Desktop, Cursor, Claude Code]
+    C[MCP client<br/>Claude Desktop, Claude Code, Cursor, VS Code, Codex]
     S[telegram-archive-mcp<br/>one Go binary]
     V[Telegram Archive viewer<br/>HTTP API, port 8000]
     A[(Your archive)]
@@ -76,18 +74,19 @@ flowchart LR
 
 - Over stdio the client starts the binary itself; that is what `npx -y telegram-archive-mcp` does, and it is the mode for a client on the same machine.
 - Over HTTP the binary serves `/mcp` on `127.0.0.1:8080`. Listening on any other address requires `MCP_AUTH_TOKEN`, which clients then send as a bearer token. See [Configuration](configuration.md).
+- It speaks MCP 2026-07-28 and every earlier revision down to 2024-11-05, so clients on either side of the 2026 protocol change work.
 - It signs in with `TELEGRAM_ARCHIVE_USER` and `TELEGRAM_ARCHIVE_PASS` through the viewer's `/api/login`, keeps the session cookie in memory, and signs in again when it expires.
 - The same version ships as Go binaries for Linux, macOS and Windows on amd64 and arm64, the npm package and the Docker image `drumsergio/telegram-archive-mcp`.
 
 ## What it does not do
 
 - It never talks to Telegram. It reads what your Telegram Archive backup has already saved, so a message the backup has not fetched yet is not there.
-- It never sends, edits or deletes a message, in Telegram or in the archive. The one call that asks the viewer to do work is `refresh_stats`, which recalculates the statistics.
-- It does not search every chat at once: `search_messages` searches one chat, so the assistant lists the chats first and picks.
+- It never sends, edits or deletes a message, in Telegram or in the archive. The one call that asks the viewer to do work is `refresh_stats`, which recalculates the statistics; `READ_ONLY=1` hides it.
 - It stores nothing. No database and no cache; every answer is read from the viewer when it is asked for.
 
 ## Privacy
 
+- Message text is written by other people, and a message can be worded to look like an instruction. The server tells the model to treat it as data, but keep your client's approval prompts on for tools from other servers.
 - Every message and image a tool returns goes into your MCP client's conversation, and from there to the model the client uses. With a hosted model, that provider receives those messages. Point the server at an archive you are willing to share that way, and keep your client's tool-approval prompts on.
 - The server logs its version and its listen address, never message text, chat names or credentials.
 - Over stdio, the viewer's password sits in your client's configuration file. Over HTTP, it stays on the machine that runs the server.
@@ -95,7 +94,7 @@ flowchart LR
 ## Getting help
 
 - A tool answers `login failed` with a status code: `TELEGRAM_ARCHIVE_USER` or `TELEGRAM_ARCHIVE_PASS` does not match a viewer login. See [Configuration](configuration.md).
-- Every call fails with a connection error: `TELEGRAM_ARCHIVE_URL` does not reach the viewer. Inside Docker Compose it is the viewer's service name, as in [Getting started](getting-started.md#docker-compose).
+- Every call fails with a connection error: `TELEGRAM_ARCHIVE_URL` does not reach the viewer. Inside Docker Compose it is the viewer's service name, as in [Getting started](getting-started.md#docker-compose-http).
 - The server exits with `MCP_AUTH_TOKEN is required when LISTEN_ADDR is not loopback`: set a token, or listen on `127.0.0.1`.
 - Something else: open an [issue](https://github.com/GeiserX/telegram-archive-mcp/issues) with the server's log lines. A security problem goes through the [security policy](https://github.com/GeiserX/telegram-archive-mcp/blob/main/SECURITY.md), never a public issue.
 - Building, testing with MCP Inspector and sending a fix: [Development](development.md). Telegram Archive itself, other MCP servers and where this one is listed: [Related projects](related.md).

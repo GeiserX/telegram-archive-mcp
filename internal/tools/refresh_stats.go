@@ -11,11 +11,9 @@ import (
 func NewRefreshStats(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 
 	tool := mcp.NewTool("refresh_stats",
-		mcp.WithDescription("Force recalculation of global telegram-archive statistics"),
-		mcp.WithToolAnnotation(mcp.ToolAnnotation{
-			DestructiveHint: boolPtr(false),
-			IdempotentHint:  boolPtr(true),
-		}),
+		mcp.WithDescription("Make the viewer recalculate the archive-wide statistics now and return them (chat, message and media counts, total size). It scans the whole archive, so it can take a while and load the viewer's database; it changes no message. Needs the viewer's master login. The cached totals in telegram-archive://stats are usually enough. Hidden when the server runs with READ_ONLY=1."),
+		describe("Recalculate archive statistics", false),
+		mcp.WithRawOutputSchema([]byte(objectOutputSchema)),
 	)
 
 	handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -23,8 +21,7 @@ func NewRefreshStats(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-
-		return mcp.NewToolResultText(string(body)), nil
+		return jsonResult(body, ""), nil
 	}
 
 	return tool, handler

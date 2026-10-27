@@ -15,14 +15,21 @@ MCP (Model Context Protocol) server built in Go. Exposes tools and resources for
 
 ### Key Files
 
-- `main.go` — Entry point, MCP server initialization
-- `tools/` — MCP tool implementations
-- `Dockerfile` — Container build
+- `cmd/server/main.go`: entry point, `newServer` (capabilities, instructions, cache hints) and the HTTP handler (auth, Origin check, body cap, timeouts)
+- `internal/tools/`: one file per MCP tool; `common.go` holds the shared annotations, argument helpers and output schemas
+- `internal/resources/`: the four `telegram-archive://` resources
+- `client/telegram_archive.go`: the HTTP client for the Telegram-Archive viewer API
+- `postinstall.js`, `run.js`: npm installer (verifies against the bundled `checksums.txt`) and launcher
+- `Dockerfile`, `.goreleaser.yaml`: the image copies the GoReleaser binary and runs as a non-root user
+
+The server speaks MCP 2026-07-28 and the legacy handshake down to 2024-11-05. Keep both eras working: the tests in `cmd/server/protocol_test.go` and `http_test.go` cover each.
 
 ## Development
 
 ```bash
-go build -o telegram-archive-mcp .
+go build -o telegram-archive-mcp ./cmd/server
+go test ./...
+node --test
 ```
 
 ## Security

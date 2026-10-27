@@ -1,3 +1,5 @@
+version: 2
+
 project_name: telegram-archive-mcp
 release:
   github:
@@ -37,32 +39,26 @@ notarize:
 
 archives:
   - id: dist
-    builds: [bin]
+    ids: [bin]
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
 
 checksum:
   name_template: 'checksums.txt'
 
+# Each image copies in the linux binary built above (ids: [bin]); the
+# Dockerfile does not compile anything.
 dockers:
   # ------------- amd64 -------------
   - image_templates:
       - "drumsergio/telegram-archive-mcp:{{ .Tag }}-amd64"
       - "drumsergio/telegram-archive-mcp:latest-amd64"
     dockerfile: Dockerfile
+    ids:    [bin]
     goos:   linux
     goarch: amd64
     use:    buildx
-    extra_files:
-      - go.mod
-      - go.sum
-      - cmd/
-      - internal/
-      - client/
-      - config/
-      - version/
-      - .goreleaser.yaml
     build_flag_templates:
       - "--platform=linux/amd64"
   # ------------- arm64 -------------
@@ -70,18 +66,10 @@ dockers:
       - "drumsergio/telegram-archive-mcp:{{ .Tag }}-arm64"
       - "drumsergio/telegram-archive-mcp:latest-arm64"
     dockerfile: Dockerfile
+    ids:    [bin]
     goos:   linux
     goarch: arm64
     use:    buildx
-    extra_files:
-      - go.mod
-      - go.sum
-      - cmd/
-      - internal/
-      - client/
-      - config/
-      - version/
-      - .goreleaser.yaml
     build_flag_templates:
       - "--platform=linux/arm64"
 
@@ -97,7 +85,7 @@ docker_manifests:
       - 'drumsergio/telegram-archive-mcp:latest-arm64'
 
 snapshot:
-  name_template: "snapshot-{{ .ShortCommit }}"
+  version_template: "snapshot-{{ .ShortCommit }}"
 
 changelog:
   groups:

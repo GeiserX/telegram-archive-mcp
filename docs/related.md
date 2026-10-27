@@ -3,7 +3,7 @@
 ## Listings
 
 <p>
-  <img src="https://img.shields.io/badge/Go-1.24-blue?style=flat-square&logo=go&logoColor=white" alt="Go"/>
+  <img src="https://img.shields.io/badge/Go-1.27-blue?style=flat-square&logo=go&logoColor=white" alt="Go"/>
   <a href="https://github.com/GeiserX/telegram-archive-mcp/stargazers"><img src="https://img.shields.io/github/stars/GeiserX/telegram-archive-mcp?style=flat-square&logo=github" alt="GitHub Stars"/></a>
   <a href="https://registry.modelcontextprotocol.io"><img src="https://img.shields.io/badge/MCP-Official%20Registry-E6522C?style=flat-square" alt="Official MCP Registry"/></a>
   <a href="https://glama.ai/mcp/servers/GeiserX/telegram-archive-mcp"><img src="https://glama.ai/mcp/servers/GeiserX/telegram-archive-mcp/badges/score.svg" alt="Glama MCP Server" /></a>
@@ -15,11 +15,14 @@
 
 ## Other MCP servers by GeiserX
 
+- [biblical-atlas-mcp](https://github.com/GeiserX/biblical-atlas-mcp): Bible people, places and events
 - [cashpilot-mcp](https://github.com/GeiserX/cashpilot-mcp): Passive income monitoring
 - [duplicacy-mcp](https://github.com/GeiserX/duplicacy-mcp): Backup health monitoring
 - [genieacs-mcp](https://github.com/GeiserX/genieacs-mcp): TR-069 device management
 - [lynxprompt-mcp](https://github.com/GeiserX/lynxprompt-mcp): AI configuration blueprints
 - [pumperly-mcp](https://github.com/GeiserX/pumperly-mcp): Fuel and EV charging prices
+- [spinnaker-mcp](https://github.com/GeiserX/spinnaker-mcp): Spinnaker pipelines and deployments
+- [vpn-bypass-mcp](https://github.com/GeiserX/vpn-bypass-mcp): Control the VPN Bypass macOS app
 
 ## Related projects
 

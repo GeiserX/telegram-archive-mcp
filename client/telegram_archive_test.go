@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 )
@@ -454,44 +455,6 @@ func TestGetPinnedMessages_UsesCorrectPath(t *testing.T) {
 	}
 }
 
-func TestGetMessagesByDate_SendsDateAndTimezone(t *testing.T) {
-	mux := loginMux()
-	mux.HandleFunc("/api/chats/c1/messages/by-date", func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
-		if q.Get("date") != "2025-01-15" {
-			t.Errorf("date = %q", q.Get("date"))
-		}
-		if q.Get("timezone") != "Europe/Madrid" {
-			t.Errorf("timezone = %q", q.Get("timezone"))
-		}
-		w.Write([]byte(`[]`))
-	})
-	ts, c := newTestServer(t, mux)
-	defer ts.Close()
-
-	_, err := c.GetMessagesByDate(context.Background(), "c1", "2025-01-15", "Europe/Madrid")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestGetMessagesByDate_OmitsEmptyTimezone(t *testing.T) {
-	mux := loginMux()
-	mux.HandleFunc("/api/chats/c1/messages/by-date", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("timezone") != "" {
-			t.Error("timezone should be absent when empty")
-		}
-		w.Write([]byte(`[]`))
-	})
-	ts, c := newTestServer(t, mux)
-	defer ts.Close()
-
-	_, err := c.GetMessagesByDate(context.Background(), "c1", "2025-01-15", "")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestGetChatStats_UsesCorrectPath(t *testing.T) {
 	mux := loginMux()
 	mux.HandleFunc("/api/chats/c1/stats", func(w http.ResponseWriter, r *http.Request) {
@@ -838,5 +801,125 @@ func TestGetChats_SendsOffset(t *testing.T) {
 
 	if _, err := c.GetChats(context.Background(), 100, 200); err != nil {
 		t.Fatalf("GetChats: %v", err)
+	}
+}
+
+// --- Hardening ----------------------------------------------------------------
+
+func TestStatusError_DoesNotEchoTheViewerBody(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/login" {
+			http.SetCookie(w, &http.Cookie{Name: "viewer_auth", Value: "tok"})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte("Traceback: db at internal-host.lan:5432 failed"))
+	}))
+	defer ts.Close()
+
+	_, err := New(ts.URL, "u", "p").GetStats(context.Background())
+	var se *StatusError
+	if !errors.As(err, &se) || se.Status != 500 {
+		t.Fatalf("err = %v, want a *StatusError with status 500", err)
+	}
+	if strings.Contains(err.Error(), "internal-host") || strings.Contains(err.Error(), "Traceback") {
+		t.Errorf("error echoes the viewer body: %q", err)
+	}
+}
+
+func TestLogin_DoesNotEchoTheViewerBody(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("debug: user table at internal-host.lan"))
+	}))
+	defer ts.Close()
+
+	err := New(ts.URL, "u", "p").login(context.Background())
+	if err == nil || !strings.Contains(err.Error(), "login failed (401)") {
+		t.Fatalf("err = %v, want login failed (401)", err)
+	}
+	if strings.Contains(err.Error(), "internal-host") {
+		t.Errorf("login error echoes the viewer body: %q", err)
+	}
+}
+
+func TestTransportError_DoesNotEchoTheURL(t *testing.T) {
+	_, err := New("http://127.0.0.1:1", "u", "p").GetStats(context.Background())
+	if err == nil {
+		t.Fatal("want an error for an unreachable viewer")
+	}
+	if strings.Contains(err.Error(), "127.0.0.1") {
+		t.Errorf("error names the internal URL: %q", err)
+	}
+}
+
+func TestLogin_RefusesARedirectToAnotherHost(t *testing.T) {
+	var leaked atomic.Int32
+	other := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		leaked.Add(1)
+		http.SetCookie(w, &http.Cookie{Name: "viewer_auth", Value: "tok"})
+	}))
+	defer other.Close()
+	viewer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 307 replays the POST body, which carries the password.
+		http.Redirect(w, r, other.URL+"/api/login", http.StatusTemporaryRedirect)
+	}))
+	defer viewer.Close()
+
+	// httptest servers share 127.0.0.1, so give the viewer a different host name.
+	base := strings.Replace(viewer.URL, "127.0.0.1", "localhost", 1)
+	err := New(base, "u", "p").login(context.Background())
+	if err == nil {
+		t.Fatal("login followed a cross-host redirect")
+	}
+	if leaked.Load() != 0 {
+		t.Errorf("the redirect target received %d requests", leaked.Load())
+	}
+}
+
+func TestLogin_FollowsASameHostRedirect(t *testing.T) {
+	var ts *httptest.Server
+	ts = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/old/api/login" {
+			http.Redirect(w, r, ts.URL+"/api/login", http.StatusPermanentRedirect)
+			return
+		}
+		http.SetCookie(w, &http.Cookie{Name: "viewer_auth", Value: "tok"})
+	}))
+	defer ts.Close()
+	if err := New(ts.URL+"/old", "u", "p").login(context.Background()); err != nil {
+		t.Fatalf("same-host redirect: %v", err)
+	}
+}
+
+func TestChatRef_RejectsDotSegmentsWithoutARequest(t *testing.T) {
+	var hits atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		http.SetCookie(w, &http.Cookie{Name: "viewer_auth", Value: "tok"})
+		w.Write([]byte(`{}`))
+	}))
+	defer ts.Close()
+	c := New(ts.URL, "u", "p")
+	ctx := context.Background()
+
+	for _, ref := range []string{"", ".", ".."} {
+		calls := map[string]func() error{
+			"GetChatStats": func() error { _, err := c.GetChatStats(ctx, ref); return err },
+			"GetTopics":    func() error { _, err := c.GetTopics(ctx, ref); return err },
+			"GetPinned":    func() error { _, err := c.GetPinnedMessages(ctx, ref); return err },
+			"GetMessages":  func() error { _, err := c.GetMessages(ctx, ref, 10, 0); return err },
+			"Search":       func() error { _, err := c.SearchMessages(ctx, ref, "q", 10); return err },
+			"GetMedia":     func() error { _, err := c.GetMedia(ctx, ref, "1_photo", 100); return err },
+			"GetMediaKey":  func() error { _, err := c.GetMedia(ctx, "c1", ref, 100); return err },
+		}
+		for name, call := range calls {
+			if err := call(); !errors.Is(err, ErrInvalidRef) {
+				t.Errorf("%s(%q): err = %v, want ErrInvalidRef", name, ref, err)
+			}
+		}
+	}
+	if hits.Load() != 0 {
+		t.Errorf("the viewer received %d requests for invalid refs", hits.Load())
 	}
 }

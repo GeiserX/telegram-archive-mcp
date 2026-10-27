@@ -311,6 +311,10 @@ func TestRegisterStats_ReadResourceReturnsMCPContent(t *testing.T) {
 func TestRegisterChats_ReadResourceReturnsMCPContent(t *testing.T) {
 	ts, c := newTestClient(t, map[string]http.HandlerFunc{
 		"/api/chats": func(w http.ResponseWriter, r *http.Request) {
+			// Without a limit the viewer returns only its default page of 50.
+			if got := r.URL.Query().Get("limit"); got != "500" {
+				t.Errorf("chats resource limit = %q, want 500", got)
+			}
 			w.Write([]byte(`[]`))
 		},
 	})

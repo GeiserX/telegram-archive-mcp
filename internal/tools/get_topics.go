@@ -8,17 +8,15 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
+const topicsOutputSchema = `{"type":"object","properties":{"topics":{"type":"array","description":"One row per forum topic: id (the topic_id other tools take), title, message_count, last_message_date, is_closed, is_pinned.","items":{"type":"object"}}}}`
+
 func NewGetTopics(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 
 	tool := mcp.NewTool("get_topics",
-		mcp.WithDescription("Get topics (forum threads) from a Telegram chat"),
-		mcp.WithString("chat_id",
-			mcp.Required(),
-			mcp.Description("Chat ID to get topics from"),
-		),
-		mcp.WithToolAnnotation(mcp.ToolAnnotation{
-			ReadOnlyHint: boolPtr(true),
-		}),
+		mcp.WithDescription("List the forum topics (threads) of a forum supergroup, with message counts. Pass a topic's id as topic_id to get_messages, search_messages or get_messages_by_date to read only that thread. A chat that is not a forum has no topics."),
+		describe("List forum topics", true),
+		chatIDParam(),
+		mcp.WithRawOutputSchema([]byte(topicsOutputSchema)),
 	)
 
 	handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -26,13 +24,11 @@ func NewGetTopics(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-
 		body, err := c.GetTopics(ctx, chatID)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-
-		return mcp.NewToolResultText(string(body)), nil
+		return jsonResult(body, "topics"), nil
 	}
 
 	return tool, handler
