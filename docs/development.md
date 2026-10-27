@@ -13,6 +13,8 @@ node --test
 - `cmd/server/tools_contract_test.go` calls every tool against a fake viewer and checks its structured output against its `outputSchema`.
 - `postinstall.test.js` covers the npm installer's URL and checksum checks.
 
+In a checkout, run `npm install --ignore-scripts` if you need the Node dependencies. The postinstall step downloads a release binary and checks it against `checksums.txt`, which is only bundled when the package is published, so without the flag it stops with "checksums.txt is not bundled".
+
 For a manual check, [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector) connects over stdio or HTTP and shows each call.
 
 ## Contributing

@@ -57,3 +57,4 @@ The server speaks MCP 2026-07-28 and every earlier revision down to 2024-11-05, 
 - Request bodies over 4 MiB are refused, and slow or idle connections are closed (10 s for headers, 60 s for the request, 120 s idle).
 - A request that arrives over the loopback interface must name the loopback in `Host` (`localhost`, `127.0.0.1` or `[::1]`), which stops a DNS-rebinding page from reaching the server. A reverse proxy on the same machine should set `Host` to `localhost` when it forwards.
 - The endpoint is stateless: it never issues an `Mcp-Session-Id`.
+- `GET /mcp` answers 405. The server pushes no notifications, so there is no event stream to open.
