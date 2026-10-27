@@ -455,44 +455,6 @@ func TestGetPinnedMessages_UsesCorrectPath(t *testing.T) {
 	}
 }
 
-func TestGetMessagesByDate_SendsDateAndTimezone(t *testing.T) {
-	mux := loginMux()
-	mux.HandleFunc("/api/chats/c1/messages/by-date", func(w http.ResponseWriter, r *http.Request) {
-		q := r.URL.Query()
-		if q.Get("date") != "2025-01-15" {
-			t.Errorf("date = %q", q.Get("date"))
-		}
-		if q.Get("timezone") != "Europe/Madrid" {
-			t.Errorf("timezone = %q", q.Get("timezone"))
-		}
-		w.Write([]byte(`[]`))
-	})
-	ts, c := newTestServer(t, mux)
-	defer ts.Close()
-
-	_, err := c.GetMessagesByDate(context.Background(), "c1", "2025-01-15", "Europe/Madrid")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestGetMessagesByDate_OmitsEmptyTimezone(t *testing.T) {
-	mux := loginMux()
-	mux.HandleFunc("/api/chats/c1/messages/by-date", func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("timezone") != "" {
-			t.Error("timezone should be absent when empty")
-		}
-		w.Write([]byte(`[]`))
-	})
-	ts, c := newTestServer(t, mux)
-	defer ts.Close()
-
-	_, err := c.GetMessagesByDate(context.Background(), "c1", "2025-01-15", "")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestGetChatStats_UsesCorrectPath(t *testing.T) {
 	mux := loginMux()
 	mux.HandleFunc("/api/chats/c1/stats", func(w http.ResponseWriter, r *http.Request) {

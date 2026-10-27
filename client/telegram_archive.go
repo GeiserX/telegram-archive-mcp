@@ -394,21 +394,6 @@ func (c *Client) GetPinnedMessages(ctx context.Context, chatID string) ([]byte, 
 	return c.doAuth(ctx, "GET", c.buildURL(path, nil), nil, true)
 }
 
-// GetMessagesByDate retrieves messages from a specific date.
-func (c *Client) GetMessagesByDate(ctx context.Context, chatID, date, timezone string) ([]byte, error) {
-	q := url.Values{}
-	q.Set("date", date)
-	if timezone != "" {
-		q.Set("timezone", timezone)
-	}
-	ref, err := escapeRef(chatID)
-	if err != nil {
-		return nil, err
-	}
-	path := "/api/chats/" + ref + "/messages/by-date"
-	return c.doAuth(ctx, "GET", c.buildURL(path, q), nil, true)
-}
-
 // GetChatStats returns statistics for a specific chat.
 func (c *Client) GetChatStats(ctx context.Context, chatID string) ([]byte, error) {
 	ref, err := escapeRef(chatID)

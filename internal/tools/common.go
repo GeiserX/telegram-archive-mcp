@@ -62,6 +62,9 @@ func topicIDArg(args map[string]any) (int64, error) {
 
 // limitArg reads an optional limit: absent or 0 gives def, larger than max
 // is capped at max, and anything that is not a whole number is an error.
+// Through the server a limit above max never gets here: the tool's input
+// schema declares the same maximum and refuses the call first. The cap only
+// guards a handler called directly, as the unit tests do.
 func limitArg(args map[string]any, def, max int64) (int64, error) {
 	v, present, err := wholeNumberArg(args, "limit", math.MaxInt32)
 	if err != nil {
