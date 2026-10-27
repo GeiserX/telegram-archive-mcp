@@ -12,29 +12,30 @@ import (
 func NewGetMessages(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 
 	tool := mcp.NewTool("get_messages",
-		mcp.WithDescription("Get messages from a Telegram chat, newest first. Page with offset, or with the keyset cursor: pass the date and id of the last message you received as before_date and before_id to get the older ones (constant time on huge chats). after_id returns messages newer than an id. Dates are naive UTC."),
-		mcp.WithString("chat_id",
-			mcp.Required(),
-			mcp.Description("Chat ID to retrieve messages from"),
+		mcp.WithDescription("Get messages from a Telegram chat, newest first. Page with offset, or with the keyset cursor: pass the date and id of the last message you received as before_date and before_id to get the older ones (constant time on huge chats). after_id returns the messages right after an id. Dates are naive UTC. Each message carries reply_to_msg_id and, when it has a file, media (pass its id to get_media)."),
+		describe("Read a chat's messages", true),
+		chatIDParam(),
+		mcp.WithInteger("limit",
+			mcp.Min(1), mcp.Max(500), mcp.DefaultNumber(50),
+			mcp.Description("Maximum messages to return, 1 to 500 (default 50)."),
 		),
-		mcp.WithNumber("limit",
-			mcp.Description("Maximum messages to return (default 50, max 500)"),
-		),
-		mcp.WithNumber("offset",
-			mcp.Description("Pagination offset (default 0). Ignored when a cursor is given."),
+		mcp.WithInteger("offset",
+			mcp.Min(0), mcp.Max(100000), mcp.DefaultNumber(0),
+			mcp.Description("Messages to skip, 0 to 100000 (default 0). Slow deep into a long chat; ignored when a cursor is given."),
 		),
 		mcp.WithString("before_date",
 			mcp.Description("Keyset cursor: ISO 8601 date-time, naive values are UTC (e.g. 2026-06-10T18:04:17). Returns messages older than this instant; pair with before_id."),
 		),
-		mcp.WithNumber("before_id",
+		mcp.WithInteger("before_id",
+			mcp.Min(0),
 			mcp.Description("Keyset cursor: message id. Returns messages with a smaller id; pair with before_date."),
 		),
-		mcp.WithNumber("after_id",
-			mcp.Description("Returns messages with an id greater than this one (newer)."),
+		mcp.WithInteger("after_id",
+			mcp.Min(0),
+			mcp.Description("Returns the messages right after this message id (newer), still newest first."),
 		),
-		mcp.WithToolAnnotation(mcp.ToolAnnotation{
-			ReadOnlyHint: boolPtr(true),
-		}),
+		topicIDParam(),
+		mcp.WithRawOutputSchema([]byte(messagesOutputSchema)),
 	)
 
 	handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -44,14 +45,13 @@ func NewGetMessages(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 		}
 		args := req.GetArguments()
 
-		limit := int64(50)
-		if v, present, err := wholeNumberArg(args, "limit", math.MaxInt32); err != nil {
+		limit, err := limitArg(args, 50, 500)
+		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
-		} else if present && v > 0 {
-			limit = v
 		}
-		if limit > 500 {
-			limit = 500
+		topicID, err := topicIDArg(args)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
 		}
 
 		var cur client.MessagesCursor
@@ -79,25 +79,20 @@ func NewGetMessages(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 			cur.AfterID = v
 		}
 
-		if cur != (client.MessagesCursor{}) {
-			body, err := c.GetMessagesCursor(ctx, chatID, int(limit), cur)
+		q := client.MessagesQuery{Limit: int(limit), TopicID: topicID, Cursor: cur}
+		if cur == (client.MessagesCursor{}) {
+			offset, _, err := wholeNumberArg(args, "offset", 100000)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
-			return mcp.NewToolResultText(string(body)), nil
+			q.Offset = int(offset)
 		}
 
-		offset, _, err := wholeNumberArg(args, "offset", 100000)
+		body, err := c.ListMessages(ctx, chatID, q)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-
-		body, err := c.GetMessages(ctx, chatID, int(limit), int(offset))
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-
-		return mcp.NewToolResultText(string(body)), nil
+		return jsonResult(body, "messages"), nil
 	}
 
 	return tool, handler

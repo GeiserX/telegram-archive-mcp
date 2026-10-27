@@ -15,7 +15,7 @@ import (
 
 func newTestHTTP(t *testing.T, opts httpOptions) *httptest.Server {
 	t.Helper()
-	s := newServer(client.New("http://127.0.0.1:1", "", ""))
+	s := newServer(client.New("http://127.0.0.1:1", "", ""), serverOptions{})
 	h, _, err := newHTTPHandler(s, opts)
 	if err != nil {
 		t.Fatal(err)
@@ -148,7 +148,7 @@ func TestHTTP_TrustedOriginIsAllowed(t *testing.T) {
 }
 
 func TestHTTP_RejectsBadTrustedOrigin(t *testing.T) {
-	s := newServer(client.New("http://127.0.0.1:1", "", ""))
+	s := newServer(client.New("http://127.0.0.1:1", "", ""), serverOptions{})
 	if _, _, err := newHTTPHandler(s, httpOptions{TrustedOrigins: []string{"not a url"}}); err == nil {
 		t.Fatal("want an error for a malformed MCP_ALLOWED_ORIGINS entry")
 	}

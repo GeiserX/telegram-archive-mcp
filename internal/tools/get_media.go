@@ -128,21 +128,28 @@ type mediaInfo struct {
 	Note          string  `json:"note,omitempty"`
 }
 
+const mediaOutputSchema = `{"type":"object","properties":{` +
+	`"message_id":{"type":"integer"},"date":{"type":["string","null"],"description":"Naive UTC."},` +
+	`"sender":{"type":["string","null"]},"text":{"type":["string","null"],"description":"The caption."},` +
+	`"reply_to_msg_id":{"type":["integer","null"]},` +
+	`"media_key":{"type":"string"},"kind":{"type":"string","description":"photo, document, video, geo..."},` +
+	`"file_name":{"type":["string","null"]},"mime_type":{"type":["string","null"]},"size_bytes":{"type":["integer","null"]},` +
+	`"image_returned":{"type":"boolean","description":"True when an image content block follows."},` +
+	`"width":{"type":"integer"},"height":{"type":"integer"},"scaled":{"type":"boolean"},` +
+	`"note":{"type":"string","description":"Why the file is not included, when it is not."}},` +
+	`"required":["message_id","media_key","kind","image_returned"]}`
+
 func NewGetMedia(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 
 	tool := mcp.NewTool("get_media",
 		mcp.WithDescription("Get the photo or file attached to one message. A JPEG, PNG, WebP or GIF image comes back as an image you can look at, scaled to at most 1568 pixels on its longest side, after a JSON text block with the message's message_id, date, sender, text (the caption) and reply_to_msg_id, and the file's media_key, kind, file_name, mime_type, size_bytes, image_returned, width, height and scaled. Any other file returns only that JSON text block, with a note saying why the file is not included."),
-		mcp.WithString("chat_id",
-			mcp.Required(),
-			mcp.Description("Chat ID (the chat's ref from list_chats)"),
+		describe("Look at a message's photo", true),
+		chatIDParam(),
+		mcp.WithInteger("message_id",
+			mcp.Required(), mcp.Min(1),
+			mcp.Description("Id of the message that carries the media; for a reply such as \"see my picture\", its reply_to_msg_id."),
 		),
-		mcp.WithNumber("message_id",
-			mcp.Required(),
-			mcp.Description("ID of the message that carries the media"),
-		),
-		mcp.WithToolAnnotation(mcp.ToolAnnotation{
-			ReadOnlyHint: boolPtr(true),
-		}),
+		mcp.WithRawOutputSchema([]byte(mediaOutputSchema)),
 	)
 
 	handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -244,7 +251,9 @@ func NewGetMedia(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 		}
 		info.ImageReturned = true
 		info.Width, info.Height, info.Scaled = w, h, scaled
-		return mcp.NewToolResultImage(infoText(info), base64.StdEncoding.EncodeToString(out), outType), nil
+		res := mcp.NewToolResultImage(infoText(info), base64.StdEncoding.EncodeToString(out), outType)
+		res.StructuredContent = info
+		return res, nil
 	}
 
 	return tool, handler
@@ -423,7 +432,7 @@ func infoText(info mediaInfo) string {
 }
 
 func infoResult(info mediaInfo) *mcp.CallToolResult {
-	return mcp.NewToolResultText(infoText(info))
+	return mcp.NewToolResultStructured(info, infoText(info))
 }
 
 func deref(s *string) string {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math"
 	"time"
 	_ "time/tzdata" // the release image has no zoneinfo; embed it so IANA names resolve
 
@@ -29,32 +28,41 @@ type archiveMessage struct {
 type byDateResult struct {
 	Date      string            `json:"date"`
 	Timezone  string            `json:"timezone"`
+	TopicID   int64             `json:"topic_id,omitempty"`
 	Count     int               `json:"count"`
 	Truncated bool              `json:"truncated"`
 	Messages  []json.RawMessage `json:"messages"`
 }
 
+const byDateOutputSchema = `{"type":"object","properties":{` +
+	`"date":{"type":"string","description":"The day asked for, YYYY-MM-DD."},` +
+	`"timezone":{"type":"string","description":"IANA timezone the day was taken in."},` +
+	`"topic_id":{"type":"integer","description":"The forum topic filter, when one was given."},` +
+	`"count":{"type":"integer","description":"Messages returned."},` +
+	`"truncated":{"type":"boolean","description":"True when the day held more than limit messages and the newest were dropped."},` +
+	`"messages":{"type":"array","description":"The day's messages, oldest first, with the same fields as get_messages.","items":{"type":"object"}}},` +
+	`"required":["date","timezone","count","truncated","messages"]}`
+
 func NewGetMessagesByDate(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 
 	tool := mcp.NewTool("get_messages_by_date",
-		mcp.WithDescription("Get every message of a Telegram chat sent on one calendar day, oldest first. The day is taken in the given timezone (default UTC); the archive stores dates in UTC. Walks the chat with the keyset cursor, so it is cheap even on chats with hundreds of thousands of messages."),
-		mcp.WithString("chat_id",
-			mcp.Required(),
-			mcp.Description("Chat ID to retrieve messages from"),
-		),
+		mcp.WithDescription("Get every message of a Telegram chat sent on one calendar day, oldest first. The day is taken in the given timezone (default UTC); the archive stores dates in UTC. Walks the chat with the keyset cursor, so it is cheap even on chats with hundreds of thousands of messages. Use it to answer \"what was said on <day>\"; use get_messages to page through a chat instead."),
+		describe("Read one day of a chat", true),
+		chatIDParam(),
 		mcp.WithString("date",
 			mcp.Required(),
-			mcp.Description("Date in YYYY-MM-DD format"),
+			mcp.Pattern(`^\d{4}-\d{2}-\d{2}$`),
+			mcp.Description("The calendar day, YYYY-MM-DD (e.g. 2026-06-10)."),
 		),
 		mcp.WithString("timezone",
 			mcp.Description("IANA timezone the date is expressed in (e.g. Europe/Madrid). Default UTC."),
 		),
-		mcp.WithNumber("limit",
-			mcp.Description("Maximum messages to return (default 1000, max 5000). When the day has more, the newest are dropped and truncated is true."),
+		mcp.WithInteger("limit",
+			mcp.Min(1), mcp.Max(byDateMaxLimit), mcp.DefaultNumber(byDateDefaultLimit),
+			mcp.Description("Maximum messages to return, 1 to 5000 (default 1000). When the day has more, the newest are dropped and truncated is true."),
 		),
-		mcp.WithToolAnnotation(mcp.ToolAnnotation{
-			ReadOnlyHint: boolPtr(true),
-		}),
+		topicIDParam(),
+		mcp.WithRawOutputSchema([]byte(byDateOutputSchema)),
 	)
 
 	handler := func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -94,32 +102,34 @@ func NewGetMessagesByDate(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 		dayStart := day.UTC()
 		dayEnd := day.AddDate(0, 0, 1).UTC()
 
-		limit := byDateDefaultLimit
-		if v, present, err := wholeNumberArg(args, "limit", math.MaxInt32); err != nil {
+		limit64, err := limitArg(args, byDateDefaultLimit, byDateMaxLimit)
+		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
-		} else if present && v > 0 {
-			limit = int(v)
 		}
-		if limit > byDateMaxLimit {
-			limit = byDateMaxLimit
-		}
-
-		messages, truncated, err := collectDay(ctx, c, chatID, dayStart, dayEnd, limit)
+		limit := int(limit64)
+		topicID, err := topicIDArg(args)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
 
-		out, err := json.Marshal(byDateResult{
+		messages, truncated, err := collectDay(ctx, c, chatID, topicID, dayStart, dayEnd, limit)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		res := byDateResult{
 			Date:      date,
 			Timezone:  tz,
+			TopicID:   topicID,
 			Count:     len(messages),
 			Truncated: truncated,
 			Messages:  messages,
-		})
+		}
+		out, err := json.Marshal(res)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		return mcp.NewToolResultText(string(out)), nil
+		return mcp.NewToolResultStructured(res, string(out)), nil
 	}
 
 	return tool, handler
@@ -130,13 +140,13 @@ func NewGetMessagesByDate(c *client.Client) (mcp.Tool, server.ToolHandlerFunc) {
 // date falls in [dayStart, dayEnd). It returns them oldest first. When more
 // than limit messages fall in the window, the oldest limit are kept and
 // truncated is true; memory stays bounded by 2*limit while walking.
-func collectDay(ctx context.Context, c *client.Client, chatID string, dayStart, dayEnd time.Time, limit int) ([]json.RawMessage, bool, error) {
+func collectDay(ctx context.Context, c *client.Client, chatID string, topicID int64, dayStart, dayEnd time.Time, limit int) ([]json.RawMessage, bool, error) {
 	var collected []json.RawMessage
 	cur := client.MessagesCursor{BeforeDate: formatArchiveTime(dayEnd)}
 	truncated := false
 
 	for {
-		body, err := c.GetMessagesCursor(ctx, chatID, byDatePageSize, cur)
+		body, err := c.ListMessages(ctx, chatID, client.MessagesQuery{Limit: byDatePageSize, TopicID: topicID, Cursor: cur})
 		if err != nil {
 			return nil, false, err
 		}

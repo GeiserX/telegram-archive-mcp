@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"io"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -31,7 +32,13 @@ type stdioPeer struct {
 
 func newStdioPeer(t *testing.T) *stdioPeer {
 	t.Helper()
-	s := newServer(client.New("http://127.0.0.1:1", "", ""))
+	return newStdioPeerFor(t, "http://127.0.0.1:1")
+}
+
+// newStdioPeerFor serves a viewer at baseURL.
+func newStdioPeerFor(t *testing.T, baseURL string) *stdioPeer {
+	t.Helper()
+	s := newServer(client.New(baseURL, "u", "p"), serverOptions{})
 	inR, inW := io.Pipe()
 	outR, outW := io.Pipe()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -125,6 +132,25 @@ func TestProtocol_ModernDiscover(t *testing.T) {
 			t.Errorf("supportedVersions = %v, missing %s", versions, want)
 		}
 	}
+	if ins, _ := r.Result["instructions"].(string); !strings.Contains(ins, "list_chats") {
+		t.Errorf("instructions = %q, want guidance naming list_chats", ins)
+	}
+}
+
+func TestProtocol_ModernResourceCacheHints(t *testing.T) {
+	p := newStdioPeerFor(t, fakeViewer(t).URL)
+	// The archive's contents are the user's own: never shared, always refetched.
+	r := p.call(1, "resources/read", map[string]any{"_meta": modernMeta, "uri": "telegram-archive://folders"})
+	if r.Error != nil {
+		t.Fatalf("resources/read failed: %d %s", r.Error.Code, r.Error.Message)
+	}
+	if r.Result["cacheScope"] != "private" || r.Result["ttlMs"] != float64(0) {
+		t.Errorf("resources/read cache hints = %v/%v, want 0/private", r.Result["ttlMs"], r.Result["cacheScope"])
+	}
+	r = p.call(2, "resources/list", map[string]any{"_meta": modernMeta})
+	if r.Error != nil || r.Result["cacheScope"] != "public" {
+		t.Errorf("resources/list = %+v, want public cache hints", r)
+	}
 }
 
 func TestProtocol_ModernToolsListIsCacheable(t *testing.T) {
@@ -136,11 +162,9 @@ func TestProtocol_ModernToolsListIsCacheable(t *testing.T) {
 	if r.Result["resultType"] != "complete" {
 		t.Errorf("resultType = %v, want complete", r.Result["resultType"])
 	}
-	if _, ok := r.Result["ttlMs"].(float64); !ok {
-		t.Errorf("ttlMs missing: %v", r.Result)
-	}
-	if _, ok := r.Result["cacheScope"].(string); !ok {
-		t.Errorf("cacheScope missing: %v", r.Result)
+	// The tool list only changes with a release: cacheable by anyone for 5 minutes.
+	if r.Result["ttlMs"] != float64(300000) || r.Result["cacheScope"] != "public" {
+		t.Errorf("cache hints = ttlMs %v, cacheScope %v; want 300000, public", r.Result["ttlMs"], r.Result["cacheScope"])
 	}
 	if names := toolNames(t, r.Result); !slices.Contains(names, "list_chats") {
 		t.Errorf("tools = %v, missing list_chats", names)

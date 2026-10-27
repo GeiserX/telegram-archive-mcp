@@ -10,6 +10,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -248,16 +249,56 @@ func (c *Client) GetStats(ctx context.Context) ([]byte, error) {
 	return c.doAuth(ctx, "GET", c.buildURL("/api/stats", nil), nil, true)
 }
 
-// GetChats returns a list of chats.
-func (c *Client) GetChats(ctx context.Context, limit, offset int) ([]byte, error) {
+// ChatsQuery holds the filters GET /api/chats accepts. Zero values are omitted.
+type ChatsQuery struct {
+	Limit  int
+	Offset int
+	// Search matches the chat title, first or last name, or username.
+	Search string
+	// Archived, when set, keeps only archived (true) or unarchived (false) chats.
+	Archived *bool
+	// FolderID, when set, keeps only the chats of one folder from GetFolders.
+	FolderID *int64
+}
+
+// ListChats returns one page of chats, most recent first.
+func (c *Client) ListChats(ctx context.Context, cq ChatsQuery) ([]byte, error) {
 	q := url.Values{}
-	if limit > 0 {
-		q.Set("limit", fmt.Sprintf("%d", limit))
+	if cq.Limit > 0 {
+		q.Set("limit", strconv.Itoa(cq.Limit))
 	}
-	if offset > 0 {
-		q.Set("offset", fmt.Sprintf("%d", offset))
+	if cq.Offset > 0 {
+		q.Set("offset", strconv.Itoa(cq.Offset))
+	}
+	if cq.Search != "" {
+		q.Set("search", cq.Search)
+	}
+	if cq.Archived != nil {
+		q.Set("archived", strconv.FormatBool(*cq.Archived))
+	}
+	if cq.FolderID != nil {
+		q.Set("folder_id", strconv.FormatInt(*cq.FolderID, 10))
 	}
 	return c.doAuth(ctx, "GET", c.buildURL("/api/chats", q), nil, true)
+}
+
+// GetChats returns a list of chats.
+func (c *Client) GetChats(ctx context.Context, limit, offset int) ([]byte, error) {
+	return c.ListChats(ctx, ChatsQuery{Limit: limit, Offset: offset})
+}
+
+// SearchAllMessages searches message text across every chat the login may
+// see (GET /api/search/messages). Each hit names its chat by ref.
+func (c *Client) SearchAllMessages(ctx context.Context, query string, limit, offset int) ([]byte, error) {
+	q := url.Values{}
+	q.Set("q", query)
+	if limit > 0 {
+		q.Set("limit", strconv.Itoa(limit))
+	}
+	if offset > 0 {
+		q.Set("offset", strconv.Itoa(offset))
+	}
+	return c.doAuth(ctx, "GET", c.buildURL("/api/search/messages", q), nil, true)
 }
 
 // GetFolders returns the list of chat folders.
@@ -272,71 +313,75 @@ func (c *Client) GetHealth(ctx context.Context) ([]byte, error) {
 
 // --- Tool methods -----------------------------------------------------------
 
-// SearchMessages searches messages in a chat.
-func (c *Client) SearchMessages(ctx context.Context, chatID, query string, limit int) ([]byte, error) {
-	q := url.Values{}
-	q.Set("search", query)
-	if limit > 0 {
-		q.Set("limit", fmt.Sprintf("%d", limit))
-	}
-	ref, err := escapeRef(chatID)
-	if err != nil {
-		return nil, err
-	}
-	path := "/api/chats/" + ref + "/messages"
-	return c.doAuth(ctx, "GET", c.buildURL(path, q), nil, true)
-}
-
-// GetMessages retrieves messages from a chat with pagination.
-func (c *Client) GetMessages(ctx context.Context, chatID string, limit, offset int) ([]byte, error) {
-	q := url.Values{}
-	if limit > 0 {
-		q.Set("limit", fmt.Sprintf("%d", limit))
-	}
-	if offset > 0 {
-		q.Set("offset", fmt.Sprintf("%d", offset))
-	}
-	ref, err := escapeRef(chatID)
-	if err != nil {
-		return nil, err
-	}
-	path := "/api/chats/" + ref + "/messages"
-	return c.doAuth(ctx, "GET", c.buildURL(path, q), nil, true)
-}
-
 // MessagesCursor is the keyset cursor accepted by GET /api/chats/{ref}/messages.
 // The viewer returns messages newest first. BeforeDate and BeforeID together
 // page backwards in constant time (pass the date and id of the last message
-// received); AfterID returns messages with a greater id. Zero values are
-// omitted from the query.
+// received); a lone BeforeID returns messages with a smaller id; AfterID
+// returns the messages right after an id. Zero values are omitted from the
+// query.
 type MessagesCursor struct {
 	BeforeDate string
 	BeforeID   int64
 	AfterID    int64
 }
 
-// GetMessagesCursor retrieves messages from a chat using the keyset cursor
-// instead of an offset.
-func (c *Client) GetMessagesCursor(ctx context.Context, chatID string, limit int, cur MessagesCursor) ([]byte, error) {
-	q := url.Values{}
-	if limit > 0 {
-		q.Set("limit", fmt.Sprintf("%d", limit))
-	}
-	if cur.BeforeDate != "" {
-		q.Set("before_date", cur.BeforeDate)
-	}
-	if cur.BeforeID > 0 {
-		q.Set("before_id", fmt.Sprintf("%d", cur.BeforeID))
-	}
-	if cur.AfterID > 0 {
-		q.Set("after_id", fmt.Sprintf("%d", cur.AfterID))
-	}
+// MessagesQuery holds everything GET /api/chats/{ref}/messages accepts.
+// Zero values are omitted from the query.
+type MessagesQuery struct {
+	Limit  int
+	Offset int
+	// Search keeps the messages whose text matches.
+	Search string
+	// TopicID keeps one forum topic (get_topics); 1 is the General topic.
+	TopicID int64
+	Cursor  MessagesCursor
+}
+
+// ListMessages returns messages of one chat, newest first.
+func (c *Client) ListMessages(ctx context.Context, chatID string, mq MessagesQuery) ([]byte, error) {
 	ref, err := escapeRef(chatID)
 	if err != nil {
 		return nil, err
 	}
-	path := "/api/chats/" + ref + "/messages"
-	return c.doAuth(ctx, "GET", c.buildURL(path, q), nil, true)
+	q := url.Values{}
+	if mq.Search != "" {
+		q.Set("search", mq.Search)
+	}
+	if mq.Limit > 0 {
+		q.Set("limit", strconv.Itoa(mq.Limit))
+	}
+	if mq.Offset > 0 {
+		q.Set("offset", strconv.Itoa(mq.Offset))
+	}
+	if mq.Cursor.BeforeDate != "" {
+		q.Set("before_date", mq.Cursor.BeforeDate)
+	}
+	if mq.Cursor.BeforeID > 0 {
+		q.Set("before_id", strconv.FormatInt(mq.Cursor.BeforeID, 10))
+	}
+	if mq.Cursor.AfterID > 0 {
+		q.Set("after_id", strconv.FormatInt(mq.Cursor.AfterID, 10))
+	}
+	if mq.TopicID > 0 {
+		q.Set("topic_id", strconv.FormatInt(mq.TopicID, 10))
+	}
+	return c.doAuth(ctx, "GET", c.buildURL("/api/chats/"+ref+"/messages", q), nil, true)
+}
+
+// SearchMessages searches messages in a chat.
+func (c *Client) SearchMessages(ctx context.Context, chatID, query string, limit int) ([]byte, error) {
+	return c.ListMessages(ctx, chatID, MessagesQuery{Search: query, Limit: limit})
+}
+
+// GetMessages retrieves messages from a chat with pagination.
+func (c *Client) GetMessages(ctx context.Context, chatID string, limit, offset int) ([]byte, error) {
+	return c.ListMessages(ctx, chatID, MessagesQuery{Limit: limit, Offset: offset})
+}
+
+// GetMessagesCursor retrieves messages from a chat using the keyset cursor
+// instead of an offset.
+func (c *Client) GetMessagesCursor(ctx context.Context, chatID string, limit int, cur MessagesCursor) ([]byte, error) {
+	return c.ListMessages(ctx, chatID, MessagesQuery{Limit: limit, Cursor: cur})
 }
 
 // GetPinnedMessages returns pinned messages for a chat.
