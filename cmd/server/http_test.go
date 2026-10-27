@@ -170,6 +170,64 @@ func TestHTTP_TrustedOriginIsAllowed(t *testing.T) {
 	}
 }
 
+// A browser on a trusted origin sends a preflight (without the token) before
+// its POST, and only hands the reply to the page when it carries CORS headers.
+func TestHTTP_TrustedOriginGetsCORS(t *testing.T) {
+	const origin = "https://inspector.example"
+	ts := newTestHTTP(t, httpOptions{Token: "s3cret", TrustedOrigins: []string{origin}})
+
+	preflight := func(from string) *http.Response {
+		req, err := http.NewRequest(http.MethodOptions, ts.URL+"/mcp", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		req.Header.Set("Origin", from)
+		req.Header.Set("Sec-Fetch-Site", "cross-site")
+		req.Header.Set("Access-Control-Request-Method", "POST")
+		req.Header.Set("Access-Control-Request-Headers", "authorization,content-type,mcp-protocol-version,mcp-method")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		resp.Body.Close()
+		return resp
+	}
+	resp := preflight(origin)
+	if resp.StatusCode != http.StatusNoContent {
+		t.Fatalf("preflight: status = %d, want 204", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != origin {
+		t.Fatalf("preflight: Allow-Origin = %q, want %q", got, origin)
+	}
+	allowed := strings.ToLower(resp.Header.Get("Access-Control-Allow-Headers"))
+	for _, h := range []string{"authorization", "content-type", "mcp-protocol-version", "mcp-method", "mcp-name"} {
+		if !strings.Contains(allowed, h) {
+			t.Fatalf("preflight: Allow-Headers = %q, missing %s", allowed, h)
+		}
+	}
+	if got := preflight("https://evil.example").Header.Get("Access-Control-Allow-Origin"); got != "" {
+		t.Fatalf("untrusted preflight: Allow-Origin = %q, want none", got)
+	}
+
+	headers := map[string]string{"Origin": origin, "Sec-Fetch-Site": "cross-site", "Authorization": "Bearer s3cret"}
+	for k, v := range modernHeaders {
+		headers[k] = v
+	}
+	resp = post(t, ts.URL+"/mcp", modernToolsList(), headers)
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("POST: status = %d, want 200", resp.StatusCode)
+	}
+	if got := resp.Header.Get("Access-Control-Allow-Origin"); got != origin {
+		t.Fatalf("POST: Allow-Origin = %q, want %q", got, origin)
+	}
+
+	// The token is still required on everything but the preflight.
+	delete(headers, "Authorization")
+	if resp := post(t, ts.URL+"/mcp", modernToolsList(), headers); resp.StatusCode != http.StatusUnauthorized {
+		t.Fatalf("POST without token: status = %d, want 401", resp.StatusCode)
+	}
+}
+
 func TestHTTP_RejectsBadTrustedOrigin(t *testing.T) {
 	s := newServer(client.New("http://127.0.0.1:1", "", ""), serverOptions{})
 	if _, _, err := newHTTPHandler(s, httpOptions{TrustedOrigins: []string{"not a url"}}); err == nil {

@@ -59,8 +59,28 @@ func bearerToken(header string) (string, bool) {
 	return token, true
 }
 
+// corsAllowedHeaders are the request headers a trusted browser origin may
+// send: the SDK's default list lacks the protocol-version, method and name
+// headers that 2026-07-28 clients send on every request.
+var corsAllowedHeaders = []string{
+	"Content-Type", "Authorization", "Last-Event-ID",
+	"Mcp-Session-Id", "Mcp-Protocol-Version", "Mcp-Method", "Mcp-Name",
+}
+
+// isPreflight reports whether r is a CORS preflight request.
+func isPreflight(r *http.Request) bool {
+	return r.Method == http.MethodOptions && r.Header.Get("Access-Control-Request-Method") != ""
+}
+
 func bearerAuth(next http.Handler, token string) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// A browser never sends credentials on a CORS preflight, and a
+		// preflight runs no tool: the SDK answers it, or 404s it when no
+		// origin is trusted. Every other request needs the token.
+		if isPreflight(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
 		got, ok := bearerToken(r.Header.Get("Authorization"))
 		if !ok || subtle.ConstantTimeCompare([]byte(got), []byte(token)) != 1 {
 			w.Header().Set("WWW-Authenticate", `Bearer realm="telegram-archive-mcp"`)
@@ -89,16 +109,26 @@ type httpOptions struct {
 // endpoint is stateless, so 2026-07-28 clients are served on it as well as
 // legacy ones.
 func newHTTPHandler(s *server.MCPServer, opts httpOptions) (http.Handler, *server.StreamableHTTPServer, error) {
-	mcpHTTP := server.NewStreamableHTTPServer(s,
-		server.WithEndpointPath("/mcp"),
-		server.WithStateLess(true),
-	)
 	cop := http.NewCrossOriginProtection()
 	for _, origin := range opts.TrustedOrigins {
 		if err := cop.AddTrustedOrigin(origin); err != nil {
 			return nil, nil, fmt.Errorf("MCP_ALLOWED_ORIGINS: %w", err)
 		}
 	}
+	httpOpts := []server.StreamableHTTPOption{
+		server.WithEndpointPath("/mcp"),
+		server.WithStateLess(true),
+	}
+	if len(opts.TrustedOrigins) > 0 {
+		// The Origin check only stops refusing these origins. A browser
+		// also needs an answer to its preflight and CORS headers on the
+		// reply before it hands the reply to the page.
+		httpOpts = append(httpOpts, server.WithStreamableHTTPCORS(
+			server.WithCORSAllowedOrigins(opts.TrustedOrigins...),
+			server.WithCORSAllowedHeaders(corsAllowedHeaders...),
+		))
+	}
+	mcpHTTP := server.NewStreamableHTTPServer(s, httpOpts...)
 	var h http.Handler = http.MaxBytesHandler(mcpHTTP, maxRequestBody)
 	if opts.Token != "" {
 		h = bearerAuth(h, opts.Token)
