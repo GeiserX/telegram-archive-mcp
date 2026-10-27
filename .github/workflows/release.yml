@@ -84,7 +84,7 @@ jobs:
       - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           distribution: goreleaser
-          # Exact, like ci.yml's release-snapshot job, so what CI checked is what ships.
+          # Exact, like ci.yml's build-arm64 job, so what CI checked is what ships.
           version: v2.19.0
           args: release --clean
         env:

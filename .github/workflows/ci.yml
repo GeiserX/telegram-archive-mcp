@@ -55,7 +55,9 @@ jobs:
       # reviewed change, like every other tool here.
       - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
 
-  release-snapshot:
+  build-arm64:
+    # Named build-arm64 because the main ruleset requires a check of that name;
+    # this job covers what the old arm64-only build did and more.
     # Runs the release's own goreleaser config without publishing: all six
     # binaries and both Docker images (the arm64 one under QEMU). A broken
     # .goreleaser.yaml or Dockerfile used to surface only after a tag was cut;
