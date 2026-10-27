@@ -7,7 +7,7 @@ Every resource and tool below reads your Telegram Archive viewer through its HTT
 | URI | What it returns |
 |---|---|
 | `telegram-archive://stats` | Chat count, message count, media count and total size of the archive |
-| `telegram-archive://chats` | Every archived chat with basic info |
+| `telegram-archive://chats` | The 500 most recent chats with basic info (`list_chats` pages further) |
 | `telegram-archive://folders` | Your Telegram chat folders |
 | `telegram-archive://health` | Whether the viewer is up |
 
@@ -17,16 +17,30 @@ Most tools take a `chat_id`. Call `list_chats` first: the `ref` of each chat is 
 
 | Tool | What it does | Arguments |
 |---|---|---|
-| `list_chats` | Lists archived chats, most recent first. Each row has `ref` (the `chat_id` the other tools take), `id` (the numeric Telegram chat id), `type`, `accounts` (the archive accounts holding it) and its title or name | `limit` (default 100, max 500), `offset` |
-| `list_folders` | Lists your Telegram chat folders | none |
-| `search_messages` | Finds messages in one chat that contain a keyword | `chat_id`, `query`, `limit` (default 20) |
-| `get_messages` | Returns a chat's messages, newest first | `chat_id`, `limit` (default 50, max 500), then either `offset`, or the keyset cursor `before_date` plus `before_id`, or `after_id` |
-| `get_messages_by_date` | Returns every message of one calendar day, oldest first | `chat_id`, `date` (`YYYY-MM-DD`), `timezone` (IANA name, default UTC), `limit` (default 1000, max 5000) |
+| `list_chats` | Lists archived chats, most recent first. Each row has `ref` (the `chat_id` the other tools take), `id` (the numeric Telegram chat id), `type`, `accounts` (the archive accounts holding it) and its title or name | `limit` (1 to 500, default 100), `offset`, `search` (part of a chat's name or username), `archived` (true or false), `folder_id` (from `list_folders`) |
+| `list_folders` | Lists your Telegram chat folders and their ids | none |
+| `search_all_chats` | Finds messages that contain words in every chat the login may see, newest first; each hit names its chat by `ref`. Needs a viewer with cross-chat search | `query`, `limit` (1 to 100, default 20), `offset` (0 to 5000) |
+| `search_messages` | Finds messages in one chat that contain a keyword | `chat_id`, `query`, `limit` (1 to 200, default 20), `topic_id` |
+| `get_messages` | Returns a chat's messages, newest first | `chat_id`, `limit` (1 to 500, default 50), then either `offset` (up to 100000), or the keyset cursor `before_date` plus `before_id`, or `after_id`; `topic_id` |
+| `get_message_context` | Returns one message with the messages around it, oldest first | `chat_id`, `message_id`, `before` and `after` (0 to 50 each, default 5) |
+| `get_messages_by_date` | Returns every message of one calendar day, oldest first | `chat_id`, `date` (`YYYY-MM-DD`), `timezone` (IANA name, default UTC), `limit` (1 to 5000, default 1000), `topic_id` |
 | `get_pinned_messages` | Returns a chat's pinned messages | `chat_id` |
-| `get_topics` | Lists the forum topics of a chat | `chat_id` |
-| `get_chat_stats` | Returns statistics for one chat | `chat_id` |
+| `get_topics` | Lists the forum topics of a chat, with the ids `topic_id` takes | `chat_id` |
+| `get_chat_stats` | Returns message and media counts, size and first and last message dates for one chat | `chat_id` |
 | `get_media` | Returns the photo or file attached to one message: an image to look at, or the file's name, type and size | `chat_id`, `message_id` |
-| `refresh_stats` | Makes the viewer recalculate the archive's statistics | none |
+| `refresh_stats` | Makes the viewer recalculate the archive's statistics. Needs the viewer's master login; hidden with `READ_ONLY=1` | none |
+
+Arguments are checked against each tool's schema before it runs: an unknown argument, a fraction where a whole number is due, or a value out of range comes back as an error the model can correct. Every tool answers with `structuredContent` matching its `outputSchema`, and the same data as JSON text for clients that read only text. A list the viewer returns as a bare array (messages, pinned messages) is wrapped as `{"messages": [...]}` in `structuredContent`.
+
+Errors from the viewer come back as one fixed sentence per HTTP status (for example `telegram-archive error 404: not found; check chat_id ...`), never the viewer's own error text.
+
+### Forum topics
+
+In a forum supergroup, `get_topics` lists the threads. Pass a topic's `id` as `topic_id` to `get_messages`, `search_messages` or `get_messages_by_date` to read only that thread; `1` is the General topic.
+
+### Around one message
+
+After a search hit, or to see what a `reply_to_msg_id` points at, `get_message_context` returns that message with up to `before` older and `after` newer messages, oldest first, plus how many of each it found.
 
 ### Paging through a long chat
 
@@ -55,4 +69,9 @@ Every message row from `get_messages`, `get_messages_by_date` and `search_messag
 
 ## On the wire
 
-Over HTTP the server has one JSON-RPC endpoint, `/mcp`; over stdio the same messages go through the process's standard input and output. A client calls `initialize`, then `resources/list` and `resources/read`, `tools/list` and `tools/call`. Any MCP client does this for you; [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector) shows each call if you want to watch.
+Over HTTP the server has one JSON-RPC endpoint, `/mcp`; over stdio the same messages go through the process's standard input and output. It speaks MCP 2026-07-28 and every earlier revision down to 2024-11-05:
+
+- A client on 2025-11-25 or earlier calls `initialize`, then `resources/list` and `resources/read`, `tools/list` and `tools/call`.
+- A 2026-07-28 client skips the handshake: it calls `server/discover` and sends its protocol version in each request's `_meta`. Tool and resource lists then carry cache hints (`ttlMs` 300000, `cacheScope` public); resource reads are `private` with no caching.
+
+Any MCP client does this for you; [MCP Inspector](https://modelcontextprotocol.io/docs/tools/inspector) shows each call if you want to watch.

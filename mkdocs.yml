@@ -2,7 +2,7 @@
 # built and deployed by .github/workflows/docs.yml.
 site_name: telegram-archive-mcp
 site_url: https://geiserx.github.io/telegram-archive-mcp/
-site_description: Let Claude, Cursor or any MCP client search and read the Telegram history you keep with Telegram Archive. 4 resources and 10 tools, one Go binary.
+site_description: Let Claude, Cursor or any MCP client search and read the Telegram history you keep with Telegram Archive. 4 resources and 12 tools, one Go binary.
 repo_url: https://github.com/GeiserX/telegram-archive-mcp
 repo_name: GeiserX/telegram-archive-mcp
 edit_uri: edit/main/docs/
