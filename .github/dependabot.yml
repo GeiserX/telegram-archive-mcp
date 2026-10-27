@@ -4,15 +4,13 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    # No major-version ignore here: it hid every mcp-go v1.x release, and v1.0.0
+    # is where the 2026-07-28 protocol landed. A major bump arrives as its own PR.
     groups:
       minor-and-patch:
         update-types:
           - minor
           - patch
-    ignore:
-      - dependency-name: '*'
-        update-types:
-          - version-update:semver-major
   - package-ecosystem: npm
     directory: /
     schedule:

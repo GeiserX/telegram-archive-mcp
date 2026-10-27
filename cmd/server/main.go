@@ -18,6 +18,7 @@ import (
 	"github.com/geiserx/telegram-archive-mcp/internal/resources"
 	"github.com/geiserx/telegram-archive-mcp/internal/tools"
 	"github.com/geiserx/telegram-archive-mcp/version"
+	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
 
@@ -44,6 +45,38 @@ func bearerAuth(next http.Handler, token string) http.Handler {
 	})
 }
 
+// newServer builds the MCP server with every resource and tool registered.
+func newServer(c *client.Client) *server.MCPServer {
+	s := server.NewMCPServer(
+		"Telegram-Archive MCP Bridge",
+		version.Version,
+		server.WithToolCapabilities(false),
+		server.WithRecovery(),
+	)
+
+	resources.RegisterStats(s, c)
+	resources.RegisterChats(s, c)
+	resources.RegisterFolders(s, c)
+	resources.RegisterHealth(s, c)
+
+	for _, newTool := range []func(*client.Client) (mcp.Tool, server.ToolHandlerFunc){
+		tools.NewListChats,
+		tools.NewListFolders,
+		tools.NewSearchMessages,
+		tools.NewGetMessages,
+		tools.NewGetPinnedMessages,
+		tools.NewGetMessagesByDate,
+		tools.NewGetChatStats,
+		tools.NewGetTopics,
+		tools.NewRefreshStats,
+		tools.NewGetMedia,
+	} {
+		tool, handler := newTool(c)
+		s.AddTool(tool, handler)
+	}
+	return s
+}
+
 func main() {
 	// Handle --help / -h / --version gracefully so MCP client probes don't hang.
 	if len(os.Args) > 1 {
@@ -68,53 +101,7 @@ func main() {
 	cfg := config.Load()
 	c := client.New(cfg.BaseURL, cfg.User, cfg.Pass)
 
-	s := server.NewMCPServer(
-		"Telegram-Archive MCP Bridge",
-		version.Version,
-		server.WithToolCapabilities(false),
-		server.WithRecovery(),
-	)
-
-	//----------------------------------------------------
-	// Resources
-	//----------------------------------------------------
-	resources.RegisterStats(s, c)
-	resources.RegisterChats(s, c)
-	resources.RegisterFolders(s, c)
-	resources.RegisterHealth(s, c)
-
-	//----------------------------------------------------
-	// Tools
-	//----------------------------------------------------
-	tool, handler := tools.NewListChats(c)
-	s.AddTool(tool, handler)
-
-	tool, handler = tools.NewListFolders(c)
-	s.AddTool(tool, handler)
-
-	tool, handler = tools.NewSearchMessages(c)
-	s.AddTool(tool, handler)
-
-	tool, handler = tools.NewGetMessages(c)
-	s.AddTool(tool, handler)
-
-	tool, handler = tools.NewGetPinnedMessages(c)
-	s.AddTool(tool, handler)
-
-	tool, handler = tools.NewGetMessagesByDate(c)
-	s.AddTool(tool, handler)
-
-	tool, handler = tools.NewGetChatStats(c)
-	s.AddTool(tool, handler)
-
-	tool, handler = tools.NewGetTopics(c)
-	s.AddTool(tool, handler)
-
-	tool, handler = tools.NewRefreshStats(c)
-	s.AddTool(tool, handler)
-
-	tool, handler = tools.NewGetMedia(c)
-	s.AddTool(tool, handler)
+	s := newServer(c)
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGTERM, syscall.SIGINT)
 	defer stop()

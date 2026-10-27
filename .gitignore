@@ -21,7 +21,7 @@ go.work.sum
 dist/
 bin/
 node_modules/
-server
+/server
 site/
 
 # Beads: bead text lives in the Dolt tracker only, never in git
