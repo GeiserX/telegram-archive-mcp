@@ -411,8 +411,9 @@ func TestNewGetMedia_ReturnsToolErrorOnAPIFailure(t *testing.T) {
 	defer ts.Close()
 
 	result := callGetMedia(t, c, map[string]any{"chat_id": "c1", "message_id": float64(42)})
-	if !result.IsError || !strings.Contains(resultText(t, result), "Chat not found") {
-		t.Errorf("expected the viewer's 404, got %s", resultText(t, result))
+	// The viewer's body never reaches the model; the status picks a fixed sentence.
+	if !result.IsError || !strings.Contains(resultText(t, result), "404") || strings.Contains(resultText(t, result), "Chat not found") {
+		t.Errorf("expected a fixed 404 sentence, got %s", resultText(t, result))
 	}
 }
 

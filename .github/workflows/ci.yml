@@ -6,44 +6,79 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt would change: $unformatted"
+            exit 1
+          fi
+      - run: go vet ./...
       - run: go test -v -race -coverprofile=coverage.out ./...
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+      - name: npm installer tests
+        run: node --test
       - name: Wait-for-npm script
         run: .github/scripts/wait-for-npm_test.sh
       - name: Upload coverage
         if: github.event_name == 'push'
-        uses: codecov/codecov-action@v7
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: coverage.out
           fail_ci_if_error: false
 
-  build-arm64:
-    # .goreleaser.yaml builds the published arm64 image from this Dockerfile, and
-    # only on a tag push. So a toolchain break in the builder surfaces during the
-    # release, after the tag is cut. That is exactly how the golang 1.27 bump
-    # broke duplicacy-cli-cron's arm64 link and cost it a burned version. Build
-    # linux/arm64 here so a bad bump goes red before merge instead.
+  govulncheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # Docker gets the whole checkout (COPY . .) and the builder layer is
-          # exported to the GHA cache, so leave the job token out of .git/config.
           persist-credentials: false
-      - uses: docker/setup-qemu-action@v4
-      - uses: docker/setup-buildx-action@v4
-      - name: Build linux/arm64 (no push)
-        uses: docker/build-push-action@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
-          context: .
-          platforms: linux/arm64
-          push: false
-          cache-from: type=gha,scope=arm64-ci
-          cache-to: type=gha,mode=max,scope=arm64-ci
+          go-version-file: go.mod
+      # Pinned rather than @latest: a new govulncheck release should arrive as a
+      # reviewed change, like every other tool here.
+      - run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+  release-snapshot:
+    # Runs the release's own goreleaser config without publishing: all six
+    # binaries and both Docker images (the arm64 one under QEMU). A broken
+    # .goreleaser.yaml or Dockerfile used to surface only after a tag was cut;
+    # that is how a golang bump once cost duplicacy-cli-cron a burned version.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
+        with:
+          distribution: goreleaser
+          version: v2.19.0
+          args: release --snapshot --clean
+      - name: The arm64 image runs as non-root and answers on stdio
+        run: |
+          image=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -- '-arm64$' | head -1)
+          test "$(docker image inspect "$image" --format '{{.Config.User}}')" = "65532:65532"
+          printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+            | docker run -i --rm --platform linux/arm64 "$image" | grep -q '"protocolVersion":"2025-11-25"'

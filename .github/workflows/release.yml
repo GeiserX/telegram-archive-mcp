@@ -4,6 +4,9 @@ on:
   push:
     tags: ["v*.*.*"]
 
+permissions:
+  contents: read
+
 jobs:
   check-version:
     # Runs before anything publishes: the tag, package.json and server.json must
@@ -13,7 +16,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Tag matches package.json and server.json
@@ -29,21 +32,34 @@ jobs:
               exit 1
             fi
           done
+          # The OCI package is tagged with the version too; the registry would
+          # otherwise point at a different image than the one this tag builds.
+          oci=$(node -p "require('./server.json').packages.find(p => p.registryType === 'oci').identifier")
+          if [ "${oci##*:}" != "v$v" ]; then
+            echo "::error file=server.json::OCI identifier is $oci, the tag says v$v"
+            exit 1
+          fi
 
   goreleaser:
     needs: check-version
     runs-on: ubuntu-latest
+    # contents: write publishes the GitHub release. Nothing here pushes to GHCR
+    # or signs with OIDC, so no packages: write and no id-token: write.
     permissions:
       contents: write
-      packages: write
-      id-token: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-go@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The changelog is built from the commits since the previous tag; a
+          # shallow clone has none of them and left the v0.3.1 notes empty.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: go.mod
-      - uses: docker/setup-buildx-action@v4
-      - uses: docker/login-action@v4
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -65,10 +81,11 @@ jobs:
             fi
           done
           exit "$missing"
-      - uses: goreleaser/goreleaser-action@v7
+      - uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7.3.0
         with:
           distribution: goreleaser
-          version: latest
+          # Exact, like ci.yml's release-snapshot job, so what CI checked is what ships.
+          version: v2.19.0
           args: release --clean
         env:
           GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
@@ -87,8 +104,10 @@ jobs:
       contents: read
       id-token: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # Trusted publishing needs npm 11.5.1+ and Node 22.14+; Node 24 ships both, so no ad-hoc npm install.
           node-version: '24'
@@ -96,6 +115,22 @@ jobs:
           check-latest: true
           registry-url: 'https://registry.npmjs.org'
       - run: npm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+      # postinstall.js verifies the binary against this copy, which npm's
+      # provenance then covers. A release asset swapped after publishing no
+      # longer matches.
+      - name: Bundle the release checksums into the package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --pattern checksums.txt
+          v="${GITHUB_REF_NAME#v}"
+          for os_arch in darwin_amd64 darwin_arm64 linux_amd64 linux_arm64; do
+            grep -Eq "^[0-9a-f]{64}  telegram-archive-mcp_${v}_${os_arch}\.tar\.gz$" checksums.txt
+          done
+          for os_arch in windows_amd64 windows_arm64; do
+            grep -Eq "^[0-9a-f]{64}  telegram-archive-mcp_${v}_${os_arch}\.zip$" checksums.txt
+          done
+          npm pack --dry-run 2>&1 | grep -q 'checksums.txt'
       - run: npm publish --loglevel verbose
 
   mcp-registry:
