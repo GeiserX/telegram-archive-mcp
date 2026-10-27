@@ -42,7 +42,28 @@ test("expectedHash refuses an asset with no line, and a suffix match", () => {
   assert.throws(() => expectedHash(SUMS, "amd64.zip"), /No checksum/);
 });
 
+test("expectedHash reads sha256sum's binary marker and CRLF line ends", () => {
+  const sums = [
+    "70cc8115c8c917d6957b09a2ae6b2d344d14645881f2c5470cb09a05bcf84bac *telegram-archive-mcp_0.3.1_darwin_arm64.tar.gz",
+    "9f0ea782f10c85468644b6b8adef4602fb712905583dea08d9fd5c54ad55625c  telegram-archive-mcp_0.3.1_linux_amd64.tar.gz",
+  ].join("\r\n");
+  assert.strictEqual(
+    expectedHash(sums, "telegram-archive-mcp_0.3.1_darwin_arm64.tar.gz"),
+    "70cc8115c8c917d6957b09a2ae6b2d344d14645881f2c5470cb09a05bcf84bac"
+  );
+  assert.strictEqual(
+    expectedHash(sums, "telegram-archive-mcp_0.3.1_linux_amd64.tar.gz"),
+    "9f0ea782f10c85468644b6b8adef4602fb712905583dea08d9fd5c54ad55625c"
+  );
+});
+
 test("getAssetName names this version's archive", () => {
   const version = require("./package.json").version;
-  assert.match(getAssetName(), new RegExp(`^telegram-archive-mcp_${version.replace(/\./g, "\\.")}_(darwin|linux|windows)_(amd64|arm64)\\.(tar\\.gz|zip)$`));
+  const names = [];
+  for (const os of ["darwin", "linux", "windows"]) {
+    for (const arch of ["amd64", "arm64"]) {
+      names.push(`telegram-archive-mcp_${version}_${os}_${arch}.${os === "windows" ? "zip" : "tar.gz"}`);
+    }
+  }
+  assert.ok(names.includes(getAssetName()), `${getAssetName()} is not one of ${names.join(", ")}`);
 });

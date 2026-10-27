@@ -69,12 +69,25 @@ function checkURL(raw, base) {
   return u;
 }
 
-// expectedHash returns the sha256 for assetName from checksums.txt content.
+const HEX64 = /^[0-9a-f]{64}$/;
+
+// expectedHash returns the sha256 for assetName from checksums.txt content:
+// lines of "<64 hex> <name>", with sha256sum's optional "*" before the name.
+// Parsed by position rather than one regex, so no line can make it backtrack.
 function expectedHash(checksumsText, assetName) {
-  for (const line of checksumsText.split(/\r?\n/)) {
-    const m = line.trim().match(/^([0-9a-f]{64})\s+\*?(.+)$/);
-    if (m && m[2] === assetName) {
-      return m[1];
+  for (const raw of checksumsText.split("\n")) {
+    const line = raw.trim();
+    const hash = line.slice(0, 64);
+    const sep = line.charAt(64);
+    if (!HEX64.test(hash) || (sep !== " " && sep !== "\t")) {
+      continue;
+    }
+    let name = line.slice(65).trim();
+    if (name.startsWith("*")) {
+      name = name.slice(1);
+    }
+    if (name === assetName) {
+      return hash;
     }
   }
   throw new Error(`No checksum for ${assetName} in the bundled checksums.txt`);
