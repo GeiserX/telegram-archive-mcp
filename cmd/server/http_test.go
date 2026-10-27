@@ -44,6 +44,10 @@ func post(t *testing.T, url string, body []byte, headers map[string]string) *htt
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "application/json, text/event-stream")
 	for k, v := range headers {
+		if k == "Host" {
+			req.Host = v
+			continue
+		}
 		req.Header.Set(k, v)
 	}
 	resp, err := http.DefaultClient.Do(req)
@@ -136,6 +140,25 @@ func TestHTTP_RejectsCrossSiteOrigin(t *testing.T) {
 	}
 }
 
+// A DNS-rebinding page and its request share one host name, so the Origin
+// check passes them. The SDK refuses a non-localhost Host on a loopback
+// connection; this keeps that default from being switched off.
+func TestHTTP_RefusesARebindingHost(t *testing.T) {
+	ts := newTestHTTP(t, httpOptions{})
+	port := ts.URL[strings.LastIndex(ts.URL, ":"):]
+	headers := map[string]string{"Host": "evil.example" + port, "Origin": "http://evil.example" + port, "Sec-Fetch-Site": "same-origin"}
+	for k, v := range modernHeaders {
+		headers[k] = v
+	}
+	if resp := post(t, ts.URL+"/mcp", modernToolsList(), headers); resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("rebinding Host: status = %d, want 403", resp.StatusCode)
+	}
+	headers["Host"], headers["Origin"] = "localhost"+port, "http://localhost"+port
+	if resp := post(t, ts.URL+"/mcp", modernToolsList(), headers); resp.StatusCode != http.StatusOK {
+		t.Fatalf("localhost Host: status = %d, want 200", resp.StatusCode)
+	}
+}
+
 func TestHTTP_TrustedOriginIsAllowed(t *testing.T) {
 	ts := newTestHTTP(t, httpOptions{TrustedOrigins: []string{"https://inspector.example"}})
 	headers := map[string]string{"Origin": "https://inspector.example", "Sec-Fetch-Site": "cross-site"}
@@ -156,15 +179,23 @@ func TestHTTP_RejectsBadTrustedOrigin(t *testing.T) {
 
 func TestHTTP_CapsRequestBody(t *testing.T) {
 	ts := newTestHTTP(t, httpOptions{})
-	// A valid request padded past the cap: only the size makes it fail.
-	padded := bytes.Replace(modernToolsList(), []byte(`"params":{`),
-		append([]byte(`"params":{"pad":"`+strings.Repeat("x", maxRequestBody+1)), []byte(`",`)...), 1)
-	resp := post(t, ts.URL+"/mcp", padded, modernHeaders)
-	if resp.StatusCode == http.StatusOK {
-		r := decodeReply(t, resp)
-		if r.Error == nil {
-			t.Fatalf("a %d-byte body was accepted", len(padded))
-		}
+	// A valid request padded to n bytes of filler: only the size differs.
+	padded := func(n int) []byte {
+		return bytes.Replace(modernToolsList(), []byte(`"params":{`),
+			append([]byte(`"params":{"pad":"`+strings.Repeat("x", n)), []byte(`",`)...), 1)
+	}
+	// Just under the cap: served.
+	r := decodeReply(t, post(t, ts.URL+"/mcp", padded(maxRequestBody-4096), modernHeaders))
+	if r.Error != nil {
+		t.Fatalf("a body under the cap was refused: %d %s", r.Error.Code, r.Error.Message)
+	}
+	// Over it: 400 with a "too large" parse error, before any tool runs.
+	resp := post(t, ts.URL+"/mcp", padded(maxRequestBody+1), modernHeaders)
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("over the cap: status = %d, want 400", resp.StatusCode)
+	}
+	if r := decodeReply(t, resp); r.Error == nil || !strings.Contains(r.Error.Message, "too large") {
+		t.Fatalf("over the cap: reply = %+v, want a body-too-large error", r)
 	}
 }
 
@@ -206,7 +237,8 @@ func TestIsLoopbackAddr(t *testing.T) {
 		"127.0.0.1:8080": true,
 		"[::1]:8080":     true,
 		"localhost:8080": true,
-		":8080":          true,
+		":8080":          false, // binds every interface
+		"LOCALHOST:8080": true,
 		"0.0.0.0:8080":   false,
 		"10.0.0.5:8080":  false,
 		"example.com:80": false,

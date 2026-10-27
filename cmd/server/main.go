@@ -25,12 +25,14 @@ import (
 	"github.com/mark3labs/mcp-go/server"
 )
 
+// isLoopbackAddr reports whether a listen address binds only the loopback
+// interface. An empty host (":8080") binds every interface, so it is not.
 func isLoopbackAddr(addr string) bool {
 	host, _, err := net.SplitHostPort(addr)
 	if err != nil {
 		return false
 	}
-	if host == "" || host == "localhost" {
+	if strings.EqualFold(host, "localhost") {
 		return true
 	}
 	ip := net.ParseIP(host)
@@ -80,8 +82,10 @@ type httpOptions struct {
 }
 
 // newHTTPHandler wraps the MCP endpoint in the protections the SDK does not
-// apply itself: Origin validation (the spec's MUST, against DNS rebinding and
-// cross-site requests), an optional bearer token and a request-body cap. The
+// apply itself: Origin validation (the spec's MUST, against cross-site
+// requests), an optional bearer token and a request-body cap. DNS rebinding is
+// the SDK's: a request that arrives over loopback with a Host that is not
+// localhost gets 403 (TestHTTP_RefusesARebindingHost keeps it on). The
 // endpoint is stateless, so 2026-07-28 clients are served on it as well as
 // legacy ones.
 func newHTTPHandler(s *server.MCPServer, opts httpOptions) (http.Handler, *server.StreamableHTTPServer, error) {

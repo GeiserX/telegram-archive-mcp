@@ -172,8 +172,14 @@ async function install() {
     log("SHA-256 checksum verified against the bundled checksums.txt.");
 
     // tar ships with macOS, Linux and Windows 10+, and bsdtar (macOS, Windows)
-    // reads zip too. Arguments go straight to the program, never through a shell.
-    execFileSync("tar", ["-xf", archive, "-C", work, BIN_NAME], { stdio: "ignore" });
+    // reads zip too. On Windows, name System32's bsdtar: Git Bash puts GNU tar
+    // first in PATH, which reads no zip. Arguments go straight to the program,
+    // never through a shell; tar's errors go to stderr, never stdout.
+    const tar =
+      process.platform === "win32"
+        ? path.join(process.env.SystemRoot || "C:\\Windows", "System32", "tar.exe")
+        : "tar";
+    execFileSync(tar, ["-xf", archive, "-C", work, BIN_NAME], { stdio: ["ignore", "ignore", "inherit"] });
     const extracted = path.join(work, BIN_NAME);
     if (process.platform !== "win32") {
       fs.chmodSync(extracted, 0o755);
