@@ -11,7 +11,6 @@ release:
 builds:
   - id: bin
     main: ./cmd/server
-    # The release binary is copied into Alpine, which has musl rather than glibc.
     env:
       - CGO_ENABLED=0
     goos: [linux, windows, darwin]
