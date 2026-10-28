@@ -11,6 +11,12 @@ release:
 builds:
   - id: bin
     main: ./cmd/server
+    # Static, with no libc dependency: the image is Alpine (musl). Go turns cgo
+    # on for a native build when a C compiler is present, so on the amd64
+    # runner the binary linked glibc and v0.4.0's amd64 image could not start
+    # (#63); the cross-compiled arm64 one was static by accident.
+    env:
+      - CGO_ENABLED=0
     goos: [linux, windows, darwin]
     goarch: [amd64, arm64]
     ldflags:
