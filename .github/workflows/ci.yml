@@ -78,9 +78,12 @@ jobs:
           distribution: goreleaser
           version: v2.19.0
           args: release --snapshot --clean
-      - name: The arm64 image runs as non-root and answers on stdio
+      - name: Both images start, run as non-root and answer on stdio
         run: |
-          image=$(docker images --format '{{.Repository}}:{{.Tag}}' | grep -- '-arm64$' | head -1)
-          test "$(docker image inspect "$image" --format '{{.Config.User}}')" = "65532:65532"
-          printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
-            | docker run -i --rm --platform linux/arm64 "$image" | grep -q '"protocolVersion":"2025-11-25"'
+          for arch in amd64 arm64; do
+            image="drumsergio/telegram-archive-mcp:latest-$arch"
+            test "$(docker image inspect "$image" --format '{{.Config.User}}')" = "65532:65532"
+            docker run --rm --platform "linux/$arch" "$image" --version
+            printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"ci","version":"0"}}}' \
+              | docker run -i --rm --platform "linux/$arch" "$image" | grep -q '"protocolVersion":"2025-11-25"'
+          done
