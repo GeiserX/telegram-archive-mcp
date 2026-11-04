@@ -250,12 +250,12 @@ func TestHTTP_CapsRequestBody(t *testing.T) {
 	if r.Error != nil {
 		t.Fatalf("a body under the cap was refused: %d %s", r.Error.Code, r.Error.Message)
 	}
-	// Over it: 400 with a "too large" parse error, before any tool runs.
+	// Over it: 413 with a JSON-RPC error naming the bound, before any tool runs.
 	resp := post(t, ts.URL+"/mcp", padded(budget+1), modernHeaders)
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Fatalf("over the cap: status = %d, want 400", resp.StatusCode)
+	if resp.StatusCode != http.StatusRequestEntityTooLarge {
+		t.Fatalf("over the cap: status = %d, want 413", resp.StatusCode)
 	}
-	if r := decodeReply(t, resp); r.Error == nil || !strings.Contains(r.Error.Message, "too large") {
+	if r := decodeReply(t, resp); r.Error == nil || !strings.Contains(r.Error.Message, "exceeds 4194304 bytes") {
 		t.Fatalf("over the cap: reply = %+v, want a body-too-large error", r)
 	}
 }

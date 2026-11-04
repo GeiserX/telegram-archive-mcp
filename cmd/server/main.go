@@ -41,7 +41,8 @@ func isLoopbackAddr(addr string) bool {
 
 // maxRequestBody caps one HTTP request body. MCP requests are small JSON
 // documents; the SDK reads the whole body into memory, so without a cap one
-// POST could exhaust it.
+// POST could exhaust it. The SDK enforces it (413, since mcp-go 1.5.0), and
+// http.MaxBytesHandler bounds any read the SDK does not make itself.
 const maxRequestBody = 4 << 20 // 4 MiB
 
 // bearerToken returns the token of an "Authorization: Bearer <token>" header.
@@ -118,6 +119,7 @@ func newHTTPHandler(s *server.MCPServer, opts httpOptions) (http.Handler, *serve
 	httpOpts := []server.StreamableHTTPOption{
 		server.WithEndpointPath("/mcp"),
 		server.WithStateLess(true),
+		server.WithMaxRequestBodyBytes(maxRequestBody),
 	}
 	if len(opts.TrustedOrigins) > 0 {
 		// The Origin check only stops refusing these origins. A browser
