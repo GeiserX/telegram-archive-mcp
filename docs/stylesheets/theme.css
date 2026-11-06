@@ -3,7 +3,7 @@
  * banner.svg draws the name in white on a #17212b panel over a #0e1621
  * background, and uses Telegram blue #2aabee for the panel's border and the
  * outgoing message bubbles. These are the colours of Telegram Archive's own
- * site, on purpose: this server is its companion. mkdocs.yml sets primary and
+ * site, on purpose: this server is its companion. zensical.toml sets primary and
  * accent to custom, so nothing is painted until these variables exist.
  */
 :root {
@@ -42,9 +42,15 @@
    Only the first topic is styled; Material puts the page title in a second
    .md-header__topic and swaps them on scroll. */
 .md-header__topic:first-child .md-ellipsis {
-  color: #ffffff;
   font-weight: 800;
   letter-spacing: -0.01em;
+}
+
+/* That colour only on the dark scheme: Zensical's modern header takes the page
+   background, so on the light scheme it is white and a light name would vanish.
+   There the name keeps the default text colour. */
+[data-md-color-scheme="slate"] .md-header__topic:first-child .md-ellipsis {
+  color: #ffffff;
 }
 
 /* Keep the mark and the name close, so they read as one unit. */
