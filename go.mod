@@ -2,9 +2,10 @@ module github.com/geiserx/telegram-archive-mcp
 
 go 1.26.0
 
-// go1.27.3 rejects certificates from the eight compromised eMudhra (emSign)
-// intermediates. setup-go builds CI and the release binaries with this version.
-toolchain go1.27.3
+// go1.27.3 and later reject certificates from the eight compromised eMudhra
+// (emSign) intermediates. go1.27.4 fixes the net/http crash GO-2026-6859.
+// setup-go builds CI and the release binaries with this version.
+toolchain go1.27.4
 
 require (
 	github.com/joho/godotenv v1.5.1
